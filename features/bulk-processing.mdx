@@ -1,0 +1,390 @@
+---
+title: 'Bulk Processing'
+description: 'Upload and analyze CSV files containing multiple text entries'
+icon: 'file-csv'
+---
+
+## Overview
+
+Bulk Processing allows you to analyze sentiment for multiple text entries simultaneously by uploading a CSV file. This feature is ideal for processing large volumes of customer feedback, reviews, or comments.
+
+## API Endpoint
+
+```
+POST /sentiment/upload-csv
+```
+
+### Authentication
+
+All requests require a Bearer token in the Authorization header:
+
+```bash
+Authorization: Bearer {your_token}
+```
+
+## File Requirements
+
+<Info>
+The CSV file must be under **3MB** in size. Files exceeding this limit will be rejected.
+</Info>
+
+### CSV Format
+
+Your CSV file should contain text entries to be analyzed. The specific column structure depends on your API configuration.
+
+## Request Format
+
+The endpoint accepts multipart form data with the CSV file:
+
+```typescript
+const formData = new FormData();
+formData.append('file', selectedFile);
+```
+
+### Headers
+
+```json
+{
+  "Authorization": "Bearer {your_token}"
+}
+```
+
+<Note>
+Do NOT set `Content-Type` header manually. The browser will automatically set it to `multipart/form-data` with the appropriate boundary.
+</Note>
+
+## Response Format
+
+The API returns an array of analyzed results:
+
+```typescript
+interface AnalisisResultado {
+  texto: string;
+  prevision: 'POSITIVO' | 'NEGATIVO';
+  probabilidad: number;
+}
+```
+
+### Response Example
+
+```json
+[
+  {
+    "texto": "Great product, highly recommend!",
+    "prevision": "POSITIVO",
+    "probabilidad": 0.9456
+  },
+  {
+    "texto": "Terrible service, very disappointed.",
+    "prevision": "NEGATIVO",
+    "probabilidad": 0.8823
+  }
+]
+```
+
+## File Size Validation
+
+<Steps>
+  <Step title="Client-Side Validation">
+    Validate file size before upload to prevent unnecessary API calls
+  </Step>
+  <Step title="Server-Side Validation">
+    The server will also validate and reject oversized files
+  </Step>
+</Steps>
+
+### Client-Side Implementation
+
+```typescript
+const MAX_SIZE_MB = 3 * 1024 * 1024; // 3MB in bytes
+
+if (selectedFile.size > MAX_SIZE_MB) {
+  const fileSizeMB = (selectedFile.size / (1024 * 1024)).toFixed(2);
+  setMessage(
+    `El archivo es demasiado pesado (${fileSizeMB} MB). ` +
+    `Por favor, sube uno menor a 3MB.`
+  );
+  setUploadStatus('error');
+  return;
+}
+```
+
+## Code Examples
+
+<CodeGroup>
+
+```typescript TypeScript/React
+const handleUpload = async (selectedFile: File, token: string) => {
+  // Validate file size
+  const MAX_SIZE_MB = 3 * 1024 * 1024;
+  if (selectedFile.size > MAX_SIZE_MB) {
+    throw new Error(
+      `File too large (${(selectedFile.size / (1024 * 1024)).toFixed(2)} MB). ` +
+      `Maximum size is 3MB.`
+    );
+  }
+
+  const formData = new FormData();
+  formData.append('file', selectedFile);
+
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_API_URL}/sentiment/upload-csv`,
+    {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${token}` },
+      body: formData,
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Upload failed with status ${response.status}`);
+  }
+
+  const data = await response.json();
+  return data;
+};
+```
+
+```javascript JavaScript
+const handleUpload = async (selectedFile, token) => {
+  const MAX_SIZE_MB = 3 * 1024 * 1024;
+  
+  if (selectedFile.size > MAX_SIZE_MB) {
+    throw new Error('File exceeds 3MB limit');
+  }
+
+  const formData = new FormData();
+  formData.append('file', selectedFile);
+
+  const response = await fetch(
+    `${API_URL}/sentiment/upload-csv`,
+    {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${token}` },
+      body: formData,
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Upload failed: ${response.status}`);
+  }
+
+  return await response.json();
+};
+```
+
+```python Python
+import requests
+
+def upload_csv(file_path: str, token: str):
+    url = f"{API_URL}/sentiment/upload-csv"
+    
+    # Check file size (3MB limit)
+    import os
+    file_size = os.path.getsize(file_path)
+    max_size = 3 * 1024 * 1024
+    
+    if file_size > max_size:
+        raise ValueError(f"File too large: {file_size / (1024*1024):.2f} MB")
+    
+    headers = {"Authorization": f"Bearer {token}"}
+    
+    with open(file_path, 'rb') as f:
+        files = {'file': f}
+        response = requests.post(url, files=files, headers=headers)
+    
+    response.raise_for_status()
+    return response.json()
+```
+
+```bash cURL
+curl -X POST https://api.example.com/sentiment/upload-csv \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -F "file=@/path/to/your/file.csv"
+```
+
+</CodeGroup>
+
+## Error Handling
+
+The endpoint returns specific HTTP status codes for different error conditions:
+
+| Status Code | Description | Cause |
+|-------------|-------------|-------|
+| 401 | Unauthorized | File exceeds 3MB limit OR invalid token |
+| 413 | Payload Too Large | File size exceeds server limit |
+| 403 | Forbidden | Insufficient permissions |
+| 500 | Internal Server Error | Server processing error |
+
+### Comprehensive Error Handling
+
+```typescript
+try {
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_API_URL}/sentiment/upload-csv`,
+    {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${token}` },
+      body: formData,
+    }
+  );
+
+  if (!response.ok) {
+    switch (response.status) {
+      case 401:
+        throw new Error(
+          "El archivo supera el límite de 3MB. " +
+          "Intenta con un archivo más pequeño."
+        );
+      case 413:
+        throw new Error(
+          "El servidor indica que el archivo es demasiado grande."
+        );
+      case 403:
+        throw new Error(
+          "No tienes permisos para realizar esta acción."
+        );
+      case 500:
+        throw new Error(
+          "Error interno del servidor. Inténtalo más tarde."
+        );
+      default:
+        throw new Error(
+          `Ocurrió un problema inesperado (Error ${response.status})`
+        );
+    }
+  }
+
+  const data = await response.json();
+  return data;
+  
+} catch (err) {
+  if (err.message === "Failed to fetch") {
+    console.error("No se pudo conectar con el servidor.");
+  } else {
+    console.error(err.message);
+  }
+  throw err;
+}
+```
+
+## Full Implementation Example
+
+```tsx
+const [selectedFile, setSelectedFile] = useState<File | null>(null);
+const [uploading, setUploading] = useState(false);
+const [uploadStatus, setUploadStatus] = useState<'success' | 'error' | null>(null);
+const [message, setMessage] = useState('');
+const [resultados, setResultados] = useState<AnalisisResultado[]>([]);
+
+const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  if (event.target.files && event.target.files[0]) {
+    setSelectedFile(event.target.files[0]);
+    setUploadStatus(null);
+    setMessage('');
+  }
+};
+
+const handleUpload = async (e: React.FormEvent) => {
+  e.preventDefault();
+ 
+  if (!token) {
+    setMessage("Sesión expirada. Por favor, inicia sesión nuevamente.");
+    setUploadStatus('error');
+    return;
+  }
+
+  if (!selectedFile) {
+    setMessage("Por favor, selecciona un archivo primero.");
+    setUploadStatus('error');
+    return;
+  }
+
+  // File size validation
+  const MAX_SIZE_MB = 3 * 1024 * 1024;
+  if (selectedFile.size > MAX_SIZE_MB) {
+    setMessage(
+      `El archivo es demasiado pesado ` +
+      `(${(selectedFile.size / (1024 * 1024)).toFixed(2)} MB). ` +
+      `Por favor, sube uno menor a 3MB.`
+    );
+    setUploadStatus('error');
+    return;
+  }
+
+  setUploading(true);
+  setUploadStatus(null);
+  setMessage('');
+
+  const formData = new FormData();
+  formData.append('file', selectedFile);
+
+  try {
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/sentiment/upload-csv`,
+      {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}` },
+        body: formData,
+      }
+    );
+
+    if (!response.ok) {
+      switch (response.status) {
+        case 401:
+          throw new Error(
+            "El archivo supera el límite de 3MB. " +
+            "Intenta con un archivo más pequeño."
+          );
+        case 413:
+          throw new Error("El servidor indica que el archivo es demasiado grande.");
+        case 403:
+          throw new Error("No tienes permisos para realizar esta acción.");
+        case 500:
+          throw new Error("Error interno del servidor. Inténtalo más tarde.");
+        default:
+          throw new Error(`Ocurrió un problema inesperado (Error ${response.status})`);
+      }
+    }
+
+    const data = await response.json();
+    setResultados(data);
+    setMessage('¡Excelente! El archivo se procesó correctamente.');
+    setUploadStatus('success');
+    setSelectedFile(null); 
+    
+  } catch (err: any) {
+    if (err.message === "Failed to fetch") {
+      setMessage("No se pudo conectar con el servidor. Verifica tu conexión.");
+    } else {
+      setMessage(err.message);
+    }
+    setUploadStatus('error');
+  } finally {
+    setUploading(false);
+  }
+};
+```
+
+## Best Practices
+
+<Steps>
+  <Step title="Validate Early">
+    Check file size and format on the client side before uploading
+  </Step>
+  <Step title="Provide Feedback">
+    Show upload progress and clear error messages
+  </Step>
+  <Step title="Handle Timeouts">
+    Implement timeout handling for large file uploads
+  </Step>
+  <Step title="Optimize CSV Size">
+    Advise users to split very large datasets into multiple files
+  </Step>
+</Steps>
+
+## Next Steps
+
+<Card title="Export Results" icon="download" href="/features/export-results">
+  Learn how to export your analysis results to CSV format
+</Card>

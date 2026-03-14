@@ -1,0 +1,372 @@
+---
+title: 'Interpreting Analysis Results'
+description: 'Understand sentiment predictions, confidence scores, and how to act on insights'
+icon: 'chart-line'
+---
+
+## Overview
+
+SentimentAPI returns structured results for each analyzed text, including a sentiment prediction and confidence score. This guide helps you understand these values and make data-driven decisions.
+
+## Result Structure
+
+Every analysis returns a result object with three key fields:
+
+```typescript
+interface AnalisisResultado {
+  texto: string;           // Original text analyzed
+  prevision: 'POSITIVO' | 'NEGATIVO';  // Sentiment prediction
+  probabilidad: number;    // Confidence score (0-1 range)
+}
+```
+
+<Note>
+This interface is defined in `app/sentiment/upload-csv/page.tsx:20-24` and used consistently across single and bulk analysis.
+</Note>
+
+## Understanding Prevision Values
+
+The `prevision` field indicates the predicted sentiment category:
+
+### POSITIVO
+
+Indicates the text expresses positive sentiment, satisfaction, or approval.
+
+**Examples:**
+- "Excelente servicio, muy recomendado"
+- "El producto superó mis expectativas"
+- "Atención al cliente muy amable y eficiente"
+
+<Tip>
+Positive predictions are displayed with a green badge and smile icon in the UI (`app/sentiment/upload-csv/page.tsx:299-306`).
+</Tip>
+
+### NEGATIVO
+
+Indicates the text expresses negative sentiment, dissatisfaction, or criticism.
+
+**Examples:**
+- "Terrible experiencia, nunca volveré"
+- "Producto defectuoso, solicité reembolso"
+- "La entrega tardó demasiado tiempo"
+
+<Warning>
+Negative predictions appear with a red badge and frown icon, signaling areas requiring immediate attention.
+</Warning>
+
+## Understanding Probabilidad (Confidence Score)
+
+The `probabilidad` field represents the model's confidence in its prediction:
+
+### Value Range
+
+- **Type:** Float number between 0 and 1
+- **Display:** Converted to percentage (0-100%)
+- **Calculation:** `probabilidad * 100`
+
+```typescript
+// Display formatting (app/sentiment/page.tsx:154)
+{(res.probabilidad * 100).toFixed(1)}%
+```
+
+### Confidence Levels
+
+<AccordionGroup>
+  <Accordion title="High Confidence: 80-100%">
+    The model is very confident in its prediction. These results are highly reliable.
+    
+    **Example:**
+    ```json
+    {
+      "texto": "Producto excelente, superó todas mis expectativas",
+      "prevision": "POSITIVO",
+      "probabilidad": 0.95
+    }
+    ```
+    
+    **Interpretation:** 95% confidence → Very clear positive sentiment
+    
+    **Action:** Trust this prediction for automated workflows and decision-making.
+  </Accordion>
+
+  <Accordion title="Medium Confidence: 60-79%">
+    The model is moderately confident. Results are generally reliable but may benefit from review.
+    
+    **Example:**
+    ```json
+    {
+      "texto": "El producto es bueno pero el precio es alto",
+      "prevision": "POSITIVO",
+      "probabilidad": 0.67
+    }
+    ```
+    
+    **Interpretation:** 67% confidence → Mixed sentiment with slight positive lean
+    
+    **Action:** Consider manual review for critical decisions.
+  </Accordion>
+
+  <Accordion title="Low Confidence: 50-59%">
+    The model has low confidence. The text may contain ambiguous or neutral sentiment.
+    
+    **Example:**
+    ```json
+    {
+      "texto": "El servicio es normal, nada especial",
+      "prevision": "NEGATIVO",
+      "probabilidad": 0.52
+    }
+    ```
+    
+    **Interpretation:** 52% confidence → Uncertain, possibly neutral sentiment
+    
+    **Action:** Manual review recommended before taking action.
+  </Accordion>
+</AccordionGroup>
+
+## Visual Representation in UI
+
+The SentimentAPI dashboard displays results with visual cues for quick interpretation:
+
+### Single Analysis View
+
+Results appear in a table format (`app/sentiment/page.tsx:118-171`):
+
+```tsx
+<span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase ${
+  res.prevision === 'POSITIVO'
+    ? 'bg-green-100 text-green-700'
+    : 'bg-red-100 text-red-700'
+}`}>
+  {res.prevision === 'POSITIVO' 
+    ? <FaceSmileIcon className="h-4 w-4 mr-1" /> 
+    : <FaceFrownIcon className="h-4 w-4 mr-1" />}
+  {res.prevision}
+</span>
+```
+
+**Visual elements:**
+- Green badge with smile icon for POSITIVO
+- Red badge with frown icon for NEGATIVO
+- Percentage display with color-coded progress bar
+
+### Bulk Analysis View
+
+Massive analysis results include progress bars (`app/sentiment/upload-csv/page.tsx:309-320`):
+
+```tsx
+<div className="flex items-center gap-2">
+  <div className="w-16 bg-gray-100 rounded-full h-1.5">
+    <div 
+      className={`h-1.5 rounded-full ${
+        item.prevision === 'POSITIVO' ? 'bg-green-400' : 'bg-red-400'
+      }`} 
+      style={{ width: `${item.probabilidad * 100}%` }}
+    ></div>
+  </div>
+  <span className="text-xs font-mono font-bold text-gray-500">
+    {(item.probabilidad * 100).toFixed(1)}%
+  </span>
+</div>
+```
+
+## Decision Thresholds for Action
+
+Use these guidelines to determine appropriate actions based on results:
+
+### For Customer Feedback Analysis
+
+<CodeGroup>
+```javascript High Priority (Negative, High Confidence)
+if (prevision === 'NEGATIVO' && probabilidad >= 0.80) {
+  // Immediate action required
+  priorityLevel = 'HIGH';
+  action = 'Contact customer within 24 hours';
+}
+```
+
+```javascript Medium Priority (Negative, Medium Confidence)
+if (prevision === 'NEGATIVO' && probabilidad >= 0.60 && probabilidad < 0.80) {
+  // Review and respond
+  priorityLevel = 'MEDIUM';
+  action = 'Add to review queue';
+}
+```
+
+```javascript Positive Feedback (Positive, High Confidence)
+if (prevision === 'POSITIVO' && probabilidad >= 0.80) {
+  // Celebrate and promote
+  priorityLevel = 'LOW';
+  action = 'Consider for testimonials or case studies';
+}
+```
+
+```javascript Uncertain Cases (Low Confidence)
+if (probabilidad < 0.60) {
+  // Manual review needed
+  priorityLevel = 'REVIEW';
+  action = 'Flag for human analysis';
+}
+```
+</CodeGroup>
+
+### For Content Moderation
+
+```typescript
+function determineModerationType(result: AnalisisResultado) {
+  if (result.prevision === 'NEGATIVO' && result.probabilidad > 0.85) {
+    return 'AUTO_FLAG'; // Automatic flagging
+  } else if (result.prevision === 'NEGATIVO' && result.probabilidad > 0.65) {
+    return 'MANUAL_REVIEW'; // Queue for review
+  } else {
+    return 'APPROVED'; // Safe to publish
+  }
+}
+```
+
+## Real-World Examples
+
+<AccordionGroup>
+  <Accordion title="Example 1: Strong Positive Feedback">
+    **Input:**
+    ```json
+    {
+      "texto": "Increíble producto, la mejor compra que he hecho"
+    }
+    ```
+    
+    **Output:**
+    ```json
+    {
+      "texto": "Increíble producto, la mejor compra que he hecho",
+      "prevision": "POSITIVO",
+      "probabilidad": 0.94
+    }
+    ```
+    
+    **Interpretation:**
+    - Clear positive sentiment with superlatives ("increíble", "mejor")
+    - 94% confidence indicates high reliability
+    - Safe to showcase as testimonial
+  </Accordion>
+
+  <Accordion title="Example 2: Strong Negative Feedback">
+    **Input:**
+    ```json
+    {
+      "texto": "Pésima calidad, el producto llegó dañado y el servicio al cliente no responde"
+    }
+    ```
+    
+    **Output:**
+    ```json
+    {
+      "texto": "Pésima calidad, el producto llegó dañado y el servicio al cliente no responde",
+      "prevision": "NEGATIVO",
+      "probabilidad": 0.97
+    }
+    ```
+    
+    **Interpretation:**
+    - Multiple negative indicators ("pésima", "dañado", "no responde")
+    - 97% confidence → Urgent attention required
+    - Escalate to customer service immediately
+  </Accordion>
+
+  <Accordion title="Example 3: Mixed Sentiment">
+    **Input:**
+    ```json
+    {
+      "texto": "El diseño es bonito pero la funcionalidad deja mucho que desear"
+    }
+    ```
+    
+    **Output:**
+    ```json
+    {
+      "texto": "El diseño es bonito pero la funcionalidad deja mucho que desear",
+      "prevision": "NEGATIVO",
+      "probabilidad": 0.62
+    }
+    ```
+    
+    **Interpretation:**
+    - Mixed sentiment with positive and negative elements
+    - 62% confidence → Model detected stronger negative weight
+    - Consider for product improvement insights
+  </Accordion>
+
+  <Accordion title="Example 4: Neutral/Ambiguous">
+    **Input:**
+    ```json
+    {
+      "texto": "El producto llegó a tiempo"
+    }
+    ```
+    
+    **Output:**
+    ```json
+    {
+      "texto": "El producto llegó a tiempo",
+      "prevision": "POSITIVO",
+      "probabilidad": 0.54
+    }
+    ```
+    
+    **Interpretation:**
+    - Neutral statement of fact
+    - 54% confidence → Low certainty, borderline classification
+    - May not provide actionable sentiment insights
+  </Accordion>
+</AccordionGroup>
+
+## Batch Analysis Insights
+
+When analyzing bulk data, aggregate results to identify trends:
+
+```javascript
+function analyzeResultsTrends(resultados) {
+  const stats = {
+    totalPositive: 0,
+    totalNegative: 0,
+    avgConfidence: 0,
+    highPriorityIssues: 0
+  };
+  
+  resultados.forEach(result => {
+    if (result.prevision === 'POSITIVO') {
+      stats.totalPositive++;
+    } else {
+      stats.totalNegative++;
+      if (result.probabilidad >= 0.80) {
+        stats.highPriorityIssues++;
+      }
+    }
+    stats.avgConfidence += result.probabilidad;
+  });
+  
+  stats.avgConfidence /= resultados.length;
+  
+  return {
+    ...stats,
+    sentimentRatio: stats.totalPositive / resultados.length,
+    needsAttention: stats.highPriorityIssues
+  };
+}
+```
+
+## Best Practices for Interpretation
+
+1. **Don't rely solely on prevision** — Always consider the confidence score
+2. **Set confidence thresholds** — Define minimum confidence levels for automated actions
+3. **Review edge cases** — Manually check results with confidence between 50-60%
+4. **Consider context** — Short texts may have lower accuracy than detailed feedback
+5. **Track trends** — Monitor sentiment over time rather than individual results
+6. **Validate regularly** — Periodically review predictions against human judgment
+
+## Related Resources
+
+- [CSV Format Specification](/guides/csv-format)
+- [Best Practices](/guides/best-practices)
+- [Export Results](/features/export-results)
+- [Statistics Dashboard](/features/statistics-dashboard)

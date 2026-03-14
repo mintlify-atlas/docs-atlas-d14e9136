@@ -1,0 +1,82 @@
+---
+title: "Sentiment Result"
+description: "Response model for individual sentiment analysis requests"
+---
+
+## Overview
+
+The `SentimentAnalysisResult` interface represents the response returned when analyzing individual text comments for sentiment. This model is used by the sentiment analysis endpoint to provide predictions and confidence scores.
+
+## Interface Definition
+
+```typescript
+interface SentimentAnalysisResult {
+  texto: string;
+  prevision: 'POSITIVO' | 'NEGATIVO';
+  probabilidad: number;
+}
+```
+
+## Fields
+
+<ResponseField name="texto" type="string" required>
+  The original text that was analyzed for sentiment. This is the exact input string provided by the user.
+</ResponseField>
+
+<ResponseField name="prevision" type="string" required>
+  The sentiment prediction result. This field indicates whether the analyzed text has a positive or negative sentiment.
+  
+  **Possible values:**
+  - `POSITIVO` - The text expresses positive sentiment
+  - `NEGATIVO` - The text expresses negative sentiment
+</ResponseField>
+
+<ResponseField name="probabilidad" type="number" required>
+  The confidence score of the prediction, expressed as a decimal value between 0 and 1.
+  
+  - **Range:** 0.0 to 1.0
+  - **Example:** A value of `0.95` indicates 95% confidence in the prediction
+  - Higher values indicate greater confidence in the sentiment classification
+</ResponseField>
+
+## Example Response
+
+```json
+[
+  {
+    "texto": "Este producto es excelente y superó mis expectativas",
+    "prevision": "POSITIVO",
+    "probabilidad": 0.95
+  },
+  {
+    "texto": "El servicio fue terrible y muy decepcionante",
+    "prevision": "NEGATIVO",
+    "probabilidad": 0.89
+  }
+]
+```
+
+## Usage Context
+
+This model is returned as an array when making POST requests to the `/sentiment` endpoint. Each element in the array corresponds to one analyzed text input.
+
+### Visualization
+
+The probability field is typically displayed as a percentage in the UI:
+- Multiply by 100 to convert to percentage: `probabilidad * 100`
+- Example: `0.95` becomes `95%`
+
+### Interpreting Confidence Scores
+
+<Expandable title="Confidence Score Guidelines">
+
+| Probability Range | Interpretation |
+|------------------|----------------|
+| 0.90 - 1.00 | Very high confidence |
+| 0.75 - 0.89 | High confidence |
+| 0.60 - 0.74 | Moderate confidence |
+| 0.00 - 0.59 | Low confidence |
+
+Results with lower confidence scores may benefit from manual review or additional context.
+
+</Expandable>

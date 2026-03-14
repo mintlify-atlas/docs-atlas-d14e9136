@@ -1,0 +1,481 @@
+---
+title: 'Export Results'
+description: 'Export sentiment analysis results to CSV format'
+icon: 'download'
+---
+
+## Overview
+
+Export Results allows you to download sentiment analysis data in CSV format for further analysis, reporting, or archival purposes. The API accepts analysis results and returns a downloadable CSV file.
+
+## API Endpoint
+
+```
+POST /sentiment/export-csv
+```
+
+### Authentication
+
+All requests require a Bearer token in the Authorization header:
+
+```bash
+Authorization: Bearer {your_token}
+```
+
+## Request Format
+
+The endpoint accepts an array of sentiment analysis results:
+
+```typescript
+interface AnalisisResultado {
+  texto: string;
+  prevision: 'POSITIVO' | 'NEGATIVO';
+  probabilidad: number;
+}
+```
+
+### Request Body Example
+
+```json
+[
+  {
+    "texto": "Excellent product quality!",
+    "prevision": "POSITIVO",
+    "probabilidad": 0.9456
+  },
+  {
+    "texto": "Very disappointed with the service.",
+    "prevision": "NEGATIVO",
+    "probabilidad": 0.8823
+  }
+]
+```
+
+### Headers
+
+```json
+{
+  "Authorization": "Bearer {your_token}",
+  "Content-Type": "application/json"
+}
+```
+
+## Response Format
+
+The API returns a CSV file as a binary blob with the following characteristics:
+
+- **Content-Type**: `text/csv` or `application/octet-stream`
+- **Format**: UTF-8 encoded CSV
+- **Columns**: Typically includes texto, prevision, probabilidad
+
+## Code Examples
+
+<CodeGroup>
+
+```typescript TypeScript/React
+const handleExportCSV = async (
+  resultados: AnalisisResultado[],
+  token: string
+) => {
+  if (!token) {
+    throw new Error("Sesión expirada. Por favor, inicia sesión nuevamente.");
+  }
+
+  try {
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/sentiment/export-csv`,
+      {
+        method: "POST",
+        headers: { 
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(resultados),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Error ${response.status}: No se pudo generar el CSV`);
+    }
+
+    // Convert response to Blob
+    const blob = await response.blob();
+    
+    // Create temporary URL for download
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = "resultados_sentimiento.csv";
+    document.body.appendChild(a);
+    a.click();
+    
+    // Cleanup
+    a.remove();
+    window.URL.revokeObjectURL(url);
+    
+  } catch (err: any) {
+    if (err.message === "Failed to fetch") {
+      throw new Error("No se pudo conectar con el servidor.");
+    }
+    throw err;
+  }
+};
+```
+
+```javascript JavaScript
+const handleExportCSV = async (resultados, token) => {
+  const response = await fetch(
+    `${API_URL}/sentiment/export-csv`,
+    {
+      method: "POST",
+      headers: { 
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(resultados),
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Export failed: ${response.status}`);
+  }
+
+  const blob = await response.blob();
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = "resultados_sentimiento.csv";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(url);
+};
+```
+
+```python Python
+import requests
+
+def export_csv(resultados: list, token: str, output_file: str):
+    url = f"{API_URL}/sentiment/export-csv"
+    
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json"
+    }
+    
+    response = requests.post(url, json=resultados, headers=headers)
+    response.raise_for_status()
+    
+    # Save CSV file
+    with open(output_file, 'wb') as f:
+        f.write(response.content)
+    
+    return output_file
+```
+
+```bash cURL
+curl -X POST https://api.example.com/sentiment/export-csv \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -d '[{"texto":"Great product!","prevision":"POSITIVO","probabilidad":0.95}]' \
+  --output resultados.csv
+```
+
+</CodeGroup>
+
+## Full Implementation Example
+
+Here's the complete implementation from the source code:
+
+```tsx
+const [dowLoading, setDowloading] = useState(false);
+const [uploadStatus, setUploadStatus] = useState<'success' | 'error' | null>(null);
+const [message, setMessage] = useState('');
+const [resultados, setResultados] = useState<AnalisisResultado[]>([]);
+
+const handleExportCSV = async (e: React.MouseEvent<HTMLButtonElement>) => {
+  e.preventDefault();
+  setDowloading(true);
+  
+  if (!token) {
+    setMessage("Sesión expirada. Por favor, inicia sesión nuevamente.");
+    setUploadStatus('error');
+    return;
+  }
+
+  try {
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/sentiment/export-csv`,
+      {
+        method: "POST",
+        headers: { 
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(resultados),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Error ${response.status}: No se pudo generar el CSV`);
+    }
+
+    // Convert response to Blob (the CSV file)
+    const blob = await response.blob();
+    
+    // Create temporary URL for the file
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = "resultados_sentimiento.csv";
+    document.body.appendChild(a);
+    a.click(); // Trigger download
+    
+    // Cleanup
+    a.remove();
+    window.URL.revokeObjectURL(url);
+    setDowloading(false);
+    setMessage('¡Excelente! El archivo se exportó correctamente.');
+    setUploadStatus('success');
+
+  } catch (err: any) {
+    setUploadStatus('error');
+    if (err.message === "Failed to fetch") {
+      setMessage("No se pudo conectar con el servidor.");
+    } else {
+      setMessage(err.message);
+    }
+  }
+};
+```
+
+## Client-Side CSV Generation (Alternative)
+
+<Info>
+For statistics data, you can also generate CSV files client-side without making an API call.
+</Info>
+
+This approach is useful when exporting data from the statistics dashboard:
+
+```typescript
+const handleExportCSV = (dataResponse: SentimentApiResponse) => {
+  if (!dataResponse || !dataResponse.content) {
+    console.error("No hay datos para exportar");
+    return;
+  }
+
+  try {
+    // Define headers and metadata
+    const headers = ["ID", "Comentario", "Prevision", "Probabilidad", "Fecha Registro"];
+    
+    // Create summary section
+    let csvContent = `\nRESUMEN DE ANALISIS DE LOS ULTIMOS ${dataResponse.total_en_pagina} COMENTARIOS\n\n`;
+    csvContent += `Total en pagina,${dataResponse.total_en_pagina}\n`;
+    csvContent += `Positivos,${dataResponse.positivos}\n`;
+    csvContent += `Negativos,${dataResponse.negativos}\n\n\n`;
+    
+    // Add table headers
+    csvContent += headers.join(",") + "\n";
+
+    // Map data rows
+    const rows = dataResponse.content.map((item) => {
+      // Clean text: remove newlines and escape quotes
+      const comentarioLimpio = item.comentario
+        .replace(/\n/g, " ")
+        .replace(/"/g, '""');
+      
+      return [
+        item.id,
+        `"${comentarioLimpio}"`,
+        item.prevision,
+        item.probabilidad,
+        `"${item.fecharegistro}"`
+      ].join(",");
+    });
+
+    csvContent += rows.join("\n");
+
+    // Create Blob with UTF-8 BOM for proper encoding
+    const blob = new Blob(["\ufeff" + csvContent], { 
+      type: "text/csv;charset=utf-8;" 
+    });
+    
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    
+    link.setAttribute("href", url);
+    link.setAttribute("download", `reporte_sentimientos_${new Date().getTime()}.csv`);
+    link.style.visibility = 'hidden';
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+  } catch (err) {
+    console.error("Error al generar CSV:", err);
+  }
+};
+```
+
+## CSV Formatting Best Practices
+
+<Steps>
+  <Step title="UTF-8 Encoding">
+    Include UTF-8 BOM (`\ufeff`) at the start of the file to ensure proper character encoding
+  </Step>
+  <Step title="Escape Special Characters">
+    Wrap fields containing commas or quotes in double quotes and escape internal quotes by doubling them
+  </Step>
+  <Step title="Clean Text Data">
+    Remove newlines and normalize whitespace in text fields to prevent CSV parsing issues
+  </Step>
+  <Step title="Timestamps">
+    Include timestamps in a sortable format (ISO 8601 or similar)
+  </Step>
+</Steps>
+
+## UI Implementation
+
+Export button with loading state:
+
+```tsx
+<button
+  onClick={handleExportCSV}
+  disabled={dowLoading}
+  className="export-button"
+>
+  {dowLoading ? (
+    <>
+      <svg className="animate-spin h-4 w-4" /* ... */>
+        {/* Spinner SVG */}
+      </svg>
+      <span>Generando...</span>
+    </>
+  ) : (
+    <>
+      <ArrowDownTrayIcon className="h-4 w-4" />
+      <span>Exportar CSV</span>
+    </>
+  )}
+</button>
+```
+
+## Error Handling
+
+<Note>
+Always validate that you have data before attempting to export.
+</Note>
+
+```typescript
+if (!resultados || resultados.length === 0) {
+  setMessage("No hay datos para exportar");
+  setUploadStatus('error');
+  return;
+}
+```
+
+### Common Error Scenarios
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| 401 Unauthorized | Invalid or expired token | Re-authenticate the user |
+| 400 Bad Request | Invalid data format | Validate data structure before sending |
+| 500 Server Error | Server processing error | Retry or contact support |
+| Failed to fetch | Network connectivity issue | Check connection and retry |
+
+## File Download Flow
+
+<Steps>
+  <Step title="API Request">
+    Send POST request with analysis results array
+  </Step>
+  <Step title="Receive Blob">
+    Convert API response to a Blob object
+  </Step>
+  <Step title="Create URL">
+    Generate temporary object URL for the Blob
+  </Step>
+  <Step title="Trigger Download">
+    Create anchor element and programmatically click it
+  </Step>
+  <Step title="Cleanup">
+    Remove anchor element and revoke object URL to free memory
+  </Step>
+</Steps>
+
+## Comparison: API vs Client-Side
+
+<Tabs>
+  <Tab title="API Export">
+    **Advantages:**
+    - Server-controlled formatting
+    - Consistent output format
+    - Can include server-side data transformations
+    
+    **Use when:**
+    - You need standardized CSV format
+    - Server has additional data to include
+    - Bulk processing results need export
+  </Tab>
+  
+  <Tab title="Client-Side Export">
+    **Advantages:**
+    - No additional API call required
+    - Faster for small datasets
+    - Customizable formatting on the fly
+    
+    **Use when:**
+    - Exporting statistics dashboard data
+    - Data is already in client state
+    - You need custom formatting or summaries
+  </Tab>
+</Tabs>
+
+## Best Practices
+
+<Steps>
+  <Step title="Validate Data">
+    Always check that you have data before attempting export
+  </Step>
+  <Step title="Loading States">
+    Show loading indicator during export process
+  </Step>
+  <Step title="Success Feedback">
+    Confirm successful download to the user
+  </Step>
+  <Step title="Memory Management">
+    Always revoke object URLs after download to prevent memory leaks
+  </Step>
+  <Step title="Filename Convention">
+    Use descriptive filenames with timestamps for easy identification
+  </Step>
+</Steps>
+
+## Advanced: Custom CSV Formatting
+
+You can customize the CSV output format:
+
+```typescript
+const formatProbability = (prob: number) => `${(prob * 100).toFixed(2)}%`;
+
+const createCustomCSV = (data: AnalisisResultado[]) => {
+  const headers = ["Text", "Sentiment", "Confidence", "Category"];
+  const rows = data.map(item => [
+    `"${item.texto.replace(/"/g, '""')}"`,
+    item.prevision,
+    formatProbability(item.probabilidad),
+    item.prevision === 'POSITIVO' ? 'Satisfied' : 'Unsatisfied'
+  ]);
+  
+  return [
+    headers.join(','),
+    ...rows.map(row => row.join(','))
+  ].join('\n');
+};
+```
+
+## Next Steps
+
+<Card title="Bulk Processing" icon="file-csv" href="/features/bulk-processing">
+  Learn how to analyze large datasets using CSV upload
+</Card>

@@ -1,0 +1,181 @@
+---
+title: 'Authentication'
+description: 'Authenticate users and obtain access tokens'
+---
+
+## POST /login
+
+Authenticate with email and password to receive an access token.
+
+### Endpoint
+
+```http
+POST /login
+```
+
+### Request Headers
+
+<ParamField header="Content-Type" type="string" required>
+  Must be set to `application/json`
+</ParamField>
+
+### Request Body
+
+<ParamField body="email" type="string" required>
+  User's email address
+</ParamField>
+
+<ParamField body="contrasenia" type="string" required>
+  User's password
+</ParamField>
+
+### Request Example
+
+```javascript
+const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/login`, {
+  method: 'POST',
+  headers: { 
+    'Content-Type': 'application/json' 
+  },
+  body: JSON.stringify({
+    email: 'user@example.com',
+    contrasenia: 'yourpassword'
+  })
+});
+
+const data = await response.json();
+```
+
+```bash cURL
+curl -X POST https://api.sentimentapi.com/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com",
+    "contrasenia": "yourpassword"
+  }'
+```
+
+```python Python
+import requests
+
+url = "https://api.sentimentapi.com/login"
+payload = {
+    "email": "user@example.com",
+    "contrasenia": "yourpassword"
+}
+
+response = requests.post(url, json=payload)
+data = response.json()
+token = data.get('token')
+```
+
+### Response
+
+<ResponseField name="token" type="string">
+  JWT access token valid for 2 hours
+</ResponseField>
+
+### Success Response (200 OK)
+
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+### Error Responses
+
+<Expandable title="401 Unauthorized">
+  **Response Body:**
+  ```json
+  {
+    "error": "Credenciales incorrectas. Intenta de nuevo."
+  }
+  ```
+  
+  **Cause:** Invalid email or password provided.
+</Expandable>
+
+<Expandable title="Invalid Token Response">
+  **Response Body:**
+  ```json
+  {
+    "error": "No se recibió un token válido."
+  }
+  ```
+  
+  **Cause:** Server failed to generate authentication token.
+</Expandable>
+
+<Expandable title="503 Service Unavailable">
+  **Response Body:**
+  ```json
+  {
+    "error": "El servicio de autenticación no está disponible."
+  }
+  ```
+  
+  **Cause:** Backend authentication service is down or unreachable.
+</Expandable>
+
+## Token Storage
+
+The authentication token is stored in an HTTP-only cookie with the following configuration:
+
+```javascript
+{
+  httpOnly: true,
+  secure: true, // in production
+  sameSite: 'lax',
+  maxAge: 7200, // 2 hours in seconds
+  path: '/'
+}
+```
+
+## Token Expiration
+
+Tokens expire after **2 hours** (7200 seconds). After expiration, users must re-authenticate by calling the `/login` endpoint again.
+
+## Using the Token
+
+Include the token in the `Authorization` header for all protected endpoints:
+
+```http
+Authorization: Bearer YOUR_TOKEN_HERE
+```
+
+### Example with Protected Endpoint
+
+```javascript
+const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...';
+
+const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/sentiment`, {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`
+  },
+  body: JSON.stringify([{ texto: 'Sample text' }])
+});
+```
+
+## Security Best Practices
+
+1. **Never expose tokens** in client-side code or logs
+2. **Use HTTPS** in production to encrypt token transmission
+3. **Store tokens securely** in HTTP-only cookies or secure storage
+4. **Implement token refresh** before expiration for better UX
+5. **Handle expired tokens** gracefully by redirecting to login
+
+## Common Authentication Errors
+
+| Error Message | Status Code | Solution |
+|---------------|-------------|----------|
+| Credenciales incorrectas | 401 | Verify email and password |
+| No se recibió un token válido | 200* | Contact support |
+| El servicio de autenticación no está disponible | 500 | Wait and retry |
+| Token expired | 401 | Re-authenticate |
+
+<Note>
+  *Note: The "No se recibió un token válido" error may return 200 OK but indicates an authentication failure on the server side.
+</Note>

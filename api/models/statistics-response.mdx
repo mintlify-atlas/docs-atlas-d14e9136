@@ -1,0 +1,198 @@
+---
+title: "Statistics Response"
+description: "Response model for sentiment analysis statistics and paginated results"
+---
+
+## Overview
+
+The `SentimentApiResponse` interface represents the response returned by the statistics endpoint. It provides aggregated sentiment metrics along with a paginated list of individual sentiment results from the database.
+
+## Interface Definitions
+
+### SentimentApiResponse
+
+```typescript
+interface SentimentApiResponse {
+  total_en_pagina: number;
+  positivos: string;
+  negativos: string;
+  content: SentimentResult[];
+  totalElements: number;
+  totalPages: number;
+  number: number;
+}
+```
+
+### SentimentResult
+
+```typescript
+interface SentimentResult {
+  id: number;
+  comentario: string;
+  prevision: 'POSITIVO' | 'NEGATIVO';
+  probabilidad: number;
+  fecharegistro: string;
+}
+```
+
+## Response Fields
+
+### Statistics Summary
+
+<ResponseField name="total_en_pagina" type="number" required>
+  The total number of sentiment results included in the current page response.
+  
+  **Example:** `50` indicates 50 comments are included in this page
+</ResponseField>
+
+<ResponseField name="positivos" type="string" required>
+  The percentage of positive sentiment results in the current page, returned as a string.
+  
+  **Format:** Decimal string representing percentage  
+  **Example:** `"65.5"` means 65.5% of comments are positive
+</ResponseField>
+
+<ResponseField name="negativos" type="string" required>
+  The percentage of negative sentiment results in the current page, returned as a string.
+  
+  **Format:** Decimal string representing percentage  
+  **Example:** `"34.5"` means 34.5% of comments are negative
+</ResponseField>
+
+### Pagination Fields
+
+<ResponseField name="totalElements" type="number" required>
+  The total number of sentiment records available across all pages in the database.
+  
+  **Example:** `500` indicates there are 500 total records
+</ResponseField>
+
+<ResponseField name="totalPages" type="number" required>
+  The total number of pages available based on the page size parameter.
+  
+  **Example:** `10` indicates there are 10 pages total
+</ResponseField>
+
+<ResponseField name="number" type="number" required>
+  The current page number (zero-indexed).
+  
+  **Example:** `0` indicates the first page, `1` indicates the second page
+</ResponseField>
+
+### Content Array
+
+<ResponseField name="content" type="SentimentResult[]" required>
+  An array of individual sentiment analysis results from the database. Each result includes the analyzed comment and its metadata.
+  
+  <Expandable title="SentimentResult Fields">
+  
+  <ResponseField name="id" type="number" required>
+    Unique identifier for the sentiment record in the database.
+  </ResponseField>
+  
+  <ResponseField name="comentario" type="string" required>
+    The original text comment that was analyzed.
+  </ResponseField>
+  
+  <ResponseField name="prevision" type="string" required>
+    The sentiment prediction for this comment.
+    
+    **Possible values:**
+    - `POSITIVO` - Positive sentiment
+    - `NEGATIVO` - Negative sentiment
+  </ResponseField>
+  
+  <ResponseField name="probabilidad" type="number" required>
+    The confidence score of the prediction (0.0 to 1.0).
+    
+    **Example:** `0.92` indicates 92% confidence
+  </ResponseField>
+  
+  <ResponseField name="fecharegistro" type="string" required>
+    The timestamp when this sentiment analysis was recorded in the database.
+    
+    **Format:** ISO 8601 date-time string  
+    **Example:** `"2024-03-15T10:30:45.123Z"`
+  </ResponseField>
+  
+  </Expandable>
+</ResponseField>
+
+## Example Response
+
+```json
+{
+  "total_en_pagina": 3,
+  "positivos": "66.7",
+  "negativos": "33.3",
+  "content": [
+    {
+      "id": 1,
+      "comentario": "El producto superó todas mis expectativas",
+      "prevision": "POSITIVO",
+      "probabilidad": 0.95,
+      "fecharegistro": "2024-03-15T10:30:45.123Z"
+    },
+    {
+      "id": 2,
+      "comentario": "Muy satisfecho con la compra",
+      "prevision": "POSITIVO",
+      "probabilidad": 0.88,
+      "fecharegistro": "2024-03-15T11:22:10.456Z"
+    },
+    {
+      "id": 3,
+      "comentario": "El servicio al cliente fue decepcionante",
+      "prevision": "NEGATIVO",
+      "probabilidad": 0.91,
+      "fecharegistro": "2024-03-15T12:15:33.789Z"
+    }
+  ],
+  "totalElements": 150,
+  "totalPages": 50,
+  "number": 0
+}
+```
+
+## Usage Context
+
+This response model is returned by the `GET /stats` endpoint when retrieving historical sentiment analysis data with pagination support.
+
+### Query Parameters
+
+The statistics endpoint accepts a `size` parameter to control the number of results per page:
+
+```
+GET /stats?size=50
+```
+
+### Working with Percentages
+
+The `positivos` and `negativos` fields are returned as strings. To display them:
+
+```typescript
+const positivosPercentage = parseFloat(dataResponse.positivos).toFixed(1);
+// Result: "66.7"
+```
+
+### Pagination Navigation
+
+<Expandable title="Implementing Pagination">
+
+```typescript
+// Calculate if there are more pages
+const hasNextPage = response.number < (response.totalPages - 1);
+const hasPreviousPage = response.number > 0;
+
+// Calculate current page (1-indexed for display)
+const currentPage = response.number + 1;
+
+// Items shown on current page
+const itemsShown = response.content.length;
+
+// Calculate range of items
+const startItem = (response.number * response.total_en_pagina) + 1;
+const endItem = startItem + itemsShown - 1;
+```
+
+</Expandable>

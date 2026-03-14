@@ -1,0 +1,227 @@
+---
+title: 'CSV Format Specification'
+description: 'Learn the correct CSV format for bulk sentiment analysis uploads'
+icon: 'file-csv'
+---
+
+## Overview
+
+SentimentAPI accepts CSV files for bulk analysis through the upload feature. This guide explains the required format, file constraints, and best practices for preparing your data.
+
+## Required CSV Structure
+
+Your CSV file must include a column named **`texto`** containing the comments or text to analyze.
+
+### Basic Format
+
+```csv
+texto
+El servicio fue excelente, muy recomendado
+Terrible experiencia, nunca volveré
+Producto de buena calidad pero precio alto
+Atención al cliente muy amable y eficiente
+```
+
+<Note>
+The header row **must** include the column name `texto`. The system validates this during upload.
+</Note>
+
+### Example with Multiple Comments
+
+```csv
+texto
+Me encantó el producto, superó mis expectativas
+La entrega fue rápida y el empaque perfecto
+No cumplió con lo prometido, muy decepcionante
+Excelente relación calidad-precio
+El soporte técnico fue muy lento en responder
+Producto defectuoso, solicité reembolso
+Muy satisfecho con la compra, lo recomiendo
+```
+
+## File Size Limits
+
+The upload system enforces strict file size limits for optimal performance:
+
+<AccordionGroup>
+  <Accordion title="Maximum File Size: 3MB">
+    Files larger than 3MB will be rejected before upload. The validation occurs both on the client side (line 138-143 in `app/sentiment/upload-csv/page.tsx`) and server side.
+
+    ```typescript
+    const MAX_SIZE_MB = 3 * 1024 * 1024;
+    if (selectedFile.size > MAX_SIZE_MB) {
+      setMessage(`El archivo es demasiado pesado. Por favor, sube uno menor a 3MB.`);
+      setUploadStatus('error');
+      return;
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Error Handling for Large Files">
+    If your file exceeds 3MB, you'll receive one of these error messages:
+    
+    - **Client-side validation**: "El archivo es demasiado pesado (X.XX MB). Por favor, sube uno menor a 3MB."
+    - **Server error 401**: "El archivo supera el límite de 3MB. Intenta con un archivo más pequeño."
+    - **Server error 413**: "El servidor indica que el archivo es demasiado grande."
+
+    <Tip>
+    If you need to analyze more than 3MB of data, split your CSV into multiple smaller files and upload them separately.
+    </Tip>
+  </Accordion>
+</AccordionGroup>
+
+## Accepted File Format
+
+<CodeGroup>
+```csv Standard Format
+texto
+Primer comentario a analizar
+Segundo comentario a analizar
+Tercer comentario a analizar
+```
+
+```csv With Quotes (Handling Special Characters)
+texto
+"El producto es bueno, pero el precio es alto"
+"Servicio rápido y eficiente"
+"No me gustó, esperaba más calidad"
+```
+
+```csv With Line Breaks in Text
+texto
+"Comentario con
+múltiples líneas
+de texto"
+"Otro comentario normal"
+```
+</CodeGroup>
+
+## CSV Preparation Best Practices
+
+### 1. Clean Your Data
+
+Before uploading, ensure your text data is clean:
+
+- Remove excessive whitespace
+- Ensure proper encoding (UTF-8 recommended)
+- Remove or escape special characters that might break CSV parsing
+- Validate that each row contains actual text content
+
+### 2. Column Naming
+
+<Warning>
+The column **must** be named exactly `texto` (lowercase). Other column names like `text`, `Texto`, or `comment` will not be recognized.
+</Warning>
+
+### 3. File Encoding
+
+Save your CSV file with UTF-8 encoding to ensure proper handling of special characters, accents, and non-ASCII characters common in Spanish text.
+
+```bash
+# Convert file to UTF-8 using iconv (Linux/Mac)
+iconv -f ISO-8859-1 -t UTF-8 input.csv > output.csv
+```
+
+### 4. Handling Commas and Quotes
+
+If your text contains commas or quotes, wrap the entire field in double quotes:
+
+```csv
+texto
+"El servicio fue bueno, pero la espera fue larga"
+"Me dijeron ""excelente calidad"" y tenían razón"
+Comentario sin caracteres especiales
+```
+
+### 5. Empty Rows
+
+Avoid empty rows in your CSV. The system processes all non-empty rows, so blank entries may result in failed analyses.
+
+## Upload Process
+
+Once your CSV is properly formatted:
+
+1. Navigate to **Análisis Masivo** in the dashboard
+2. Click **Seleccionar CSV** to choose your file
+3. The system validates file size before upload
+4. Click **Iniciar Procesamiento Masivo** to begin analysis
+5. Results appear in a detailed table with sentiment predictions
+
+<Note>
+The upload interface is located at `app/sentiment/upload-csv/page.tsx:202-226` and provides real-time validation feedback.
+</Note>
+
+## Example: Creating a CSV File
+
+### Using Excel or Google Sheets
+
+1. Create a new spreadsheet
+2. In cell A1, enter: `texto`
+3. In cells A2, A3, A4, etc., enter your comments
+4. Save as CSV format (UTF-8)
+
+### Using Python
+
+```python
+import pandas as pd
+
+data = {
+    'texto': [
+        'Excelente producto, muy satisfecho',
+        'Mala calidad, no lo recomiendo',
+        'Buena atención al cliente',
+        'El envío tardó demasiado tiempo'
+    ]
+}
+
+df = pd.DataFrame(data)
+df.to_csv('comentarios.csv', index=False, encoding='utf-8')
+```
+
+### Using JavaScript/Node.js
+
+```javascript
+const fs = require('fs');
+
+const comments = [
+  'Producto excelente',
+  'Muy mala experiencia',
+  'Servicio aceptable',
+  'Superó mis expectativas'
+];
+
+const csvContent = 'texto\n' + comments.join('\n');
+fs.writeFileSync('comentarios.csv', csvContent, 'utf8');
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="File Upload Fails">
+    **Possible causes:**
+    - File size exceeds 3MB
+    - File is not in CSV format
+    - Missing or incorrect `texto` column header
+    - Network connection issues
+    
+    **Solution:** Verify file format, check file size, and ensure stable internet connection.
+  </Accordion>
+
+  <Accordion title="Special Characters Display Incorrectly">
+    **Cause:** File encoding is not UTF-8
+    
+    **Solution:** Re-save your CSV with UTF-8 encoding. Most modern editors support this option.
+  </Accordion>
+
+  <Accordion title="Some Rows Are Skipped">
+    **Cause:** Empty rows or malformed CSV structure
+    
+    **Solution:** Remove empty rows and ensure each row has valid text in the `texto` column.
+  </Accordion>
+</AccordionGroup>
+
+## Related Resources
+
+- [Bulk Processing Feature](/features/bulk-processing)
+- [Interpreting Results](/guides/interpreting-results)
+- [Export Results](/features/export-results)

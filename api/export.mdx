@@ -1,0 +1,461 @@
+---
+title: 'Export CSV'
+description: 'Export sentiment analysis results to CSV format'
+---
+
+## POST /sentiment/export-csv
+
+Export sentiment analysis results to a downloadable CSV file.
+
+### Endpoint
+
+```http
+POST /sentiment/export-csv
+```
+
+### Authentication
+
+<ParamField header="Authorization" type="string" required>
+  Bearer token obtained from the `/login` endpoint
+</ParamField>
+
+### Request Headers
+
+<ParamField header="Content-Type" type="string" required>
+  Must be set to `application/json`
+</ParamField>
+
+<ParamField header="Authorization" type="string" required>
+  Format: `Bearer YOUR_TOKEN`
+</ParamField>
+
+### Request Body
+
+Send an array of sentiment analysis results to export.
+
+<ParamField body="results" type="array" required>
+  Array of sentiment analysis objects containing:
+  
+  - **texto** (string): The analyzed text
+  - **prevision** (string): Sentiment prediction (`POSITIVO` or `NEGATIVO`)
+  - **probabilidad** (number): Confidence score (0-1)
+</ParamField>
+
+**Example Request Body:**
+```json
+[
+  {
+    "texto": "Great product!",
+    "prevision": "POSITIVO",
+    "probabilidad": 0.94
+  },
+  {
+    "texto": "Terrible experience",
+    "prevision": "NEGATIVO",
+    "probabilidad": 0.89
+  }
+]
+```
+
+### Request Examples
+
+<CodeGroup>
+```javascript JavaScript
+const token = 'YOUR_TOKEN_HERE';
+const results = [
+  {
+    texto: "Great product!",
+    prevision: "POSITIVO",
+    probabilidad: 0.94
+  },
+  {
+    texto: "Terrible experience",
+    prevision: "NEGATIVO",
+    probabilidad: 0.89
+  }
+];
+
+const response = await fetch(
+  `${process.env.NEXT_PUBLIC_API_URL}/sentiment/export-csv`,
+  {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(results)
+  }
+);
+
+if (!response.ok) {
+  throw new Error(`Error ${response.status}: No se pudo generar el CSV`);
+}
+
+// Convert response to blob
+const blob = await response.blob();
+
+// Create download link
+const url = window.URL.createObjectURL(blob);
+const a = document.createElement('a');
+a.href = url;
+a.download = 'resultados_sentimiento.csv';
+document.body.appendChild(a);
+a.click();
+
+// Cleanup
+a.remove();
+window.URL.revokeObjectURL(url);
+```
+
+```bash cURL
+curl -X POST https://api.sentimentapi.com/sentiment/export-csv \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[{
+    "texto": "Great product!",
+    "prevision": "POSITIVO",
+    "probabilidad": 0.94
+  }]' \
+  --output resultados.csv
+```
+
+```python Python
+import requests
+import os
+
+token = os.getenv('AUTH_TOKEN')
+url = f"{os.getenv('API_URL')}/sentiment/export-csv"
+
+headers = {
+    'Authorization': f'Bearer {token}',
+    'Content-Type': 'application/json'
+}
+
+results = [
+    {
+        'texto': 'Great product!',
+        'prevision': 'POSITIVO',
+        'probabilidad': 0.94
+    },
+    {
+        'texto': 'Terrible experience',
+        'prevision': 'NEGATIVO',
+        'probabilidad': 0.89
+    }
+]
+
+response = requests.post(url, json=results, headers=headers)
+
+if response.status_code == 200:
+    # Save CSV file
+    with open('resultados_sentimiento.csv', 'wb') as f:
+        f.write(response.content)
+    print('CSV exported successfully')
+else:
+    print(f'Error: {response.status_code}')
+```
+</CodeGroup>
+
+### Response
+
+The API returns a binary CSV file blob with appropriate headers for download.
+
+<ResponseField name="Content-Type" type="header">
+  `text/csv` or `application/csv`
+</ResponseField>
+
+<ResponseField name="Content-Disposition" type="header">
+  `attachment; filename="resultados_sentimiento.csv"`
+</ResponseField>
+
+### Success Response (200 OK)
+
+**Response Type:** Binary (CSV file blob)
+
+**CSV Content Example:**
+```csv
+texto,prevision,probabilidad
+"Great product!",POSITIVO,0.94
+"Terrible experience",NEGATIVO,0.89
+"Average quality",POSITIVO,0.62
+```
+
+## Error Responses
+
+<Expandable title="401 Unauthorized">
+  **Cause:** Missing or invalid authentication token.
+  
+  **Response:**
+  ```json
+  {
+    "error": "Sesión expirada. Por favor, inicia sesión nuevamente."
+  }
+  ```
+  
+  **Solution:** Obtain a new token from `/login`.
+</Expandable>
+
+<Expandable title="400 Bad Request">
+  **Cause:** Invalid request body or empty results array.
+  
+  **Response:**
+  ```json
+  {
+    "error": "No hay datos para exportar"
+  }
+  ```
+  
+  **Solution:** Ensure the request body contains a valid array of results.
+</Expandable>
+
+<Expandable title="500 Internal Server Error">
+  **Cause:** Server-side error during CSV generation.
+  
+  **Response:**
+  ```json
+  {
+    "error": "Error al generar el archivo CSV"
+  }
+  ```
+  
+  **Solution:** Retry the request or contact support.
+</Expandable>
+
+<Expandable title="Network Error">
+  **Cause:** Failed to connect to the server.
+  
+  **Client-side error:** `Failed to fetch`
+  
+  **Solution:** Check network connection and server availability.
+</Expandable>
+
+## Complete Implementation Example
+
+```javascript React Component
+import { useState } from 'react';
+
+function ExportButton({ results, token }) {
+  const [downloading, setDownloading] = useState(false);
+  const [message, setMessage] = useState('');
+  const [status, setStatus] = useState(null);
+
+  const handleExport = async () => {
+    setDownloading(true);
+    setMessage('');
+    
+    if (!token) {
+      setMessage('Sesión expirada. Por favor, inicia sesión nuevamente.');
+      setStatus('error');
+      setDownloading(false);
+      return;
+    }
+
+    if (!results || results.length === 0) {
+      setMessage('No hay datos para exportar');
+      setStatus('error');
+      setDownloading(false);
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/sentiment/export-csv`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(results)
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Error ${response.status}: No se pudo generar el CSV`);
+      }
+
+      // Convert response to blob
+      const blob = await response.blob();
+      
+      // Create temporary URL for download
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'resultados_sentimiento.csv';
+      document.body.appendChild(a);
+      a.click();
+      
+      // Cleanup
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      
+      setMessage('¡Excelente! El archivo se exportó correctamente.');
+      setStatus('success');
+    } catch (err) {
+      if (err.message === 'Failed to fetch') {
+        setMessage('No se pudo conectar con el servidor.');
+      } else {
+        setMessage(err.message);
+      }
+      setStatus('error');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  return (
+    <div>
+      <button 
+        onClick={handleExport}
+        disabled={downloading || !results || results.length === 0}
+        className="export-button"
+      >
+        {downloading ? (
+          <>
+            <span className="spinner" />
+            Generando...
+          </>
+        ) : (
+          <>
+            <DownloadIcon />
+            Exportar CSV
+          </>
+        )}
+      </button>
+      
+      {message && (
+        <div className={`message ${status}`}>
+          {message}
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+## CSV File Format
+
+The exported CSV file includes:
+
+### Headers
+```
+texto,prevision,probabilidad
+```
+
+### Data Rows
+- **texto**: Original text (quoted if contains commas/newlines)
+- **prevision**: Sentiment classification (POSITIVO/NEGATIVO)
+- **probabilidad**: Confidence score as decimal (0.0-1.0)
+
+### Special Character Handling
+
+- **Newlines** in text are replaced with spaces
+- **Double quotes** are escaped as `""`
+- **Text with commas** is wrapped in double quotes
+- **UTF-8 encoding** preserves special characters
+
+## Download Flow
+
+1. **Send request** with results array to `/sentiment/export-csv`
+2. **Receive blob** containing CSV data
+3. **Create object URL** from blob
+4. **Trigger download** programmatically
+5. **Cleanup** temporary URL after download
+
+## Best Practices
+
+1. **Validate data** before export to ensure results exist
+2. **Show loading state** during CSV generation
+3. **Handle errors gracefully** with user-friendly messages
+4. **Auto-cleanup** blob URLs to prevent memory leaks
+5. **Use descriptive filenames** with timestamps if needed
+6. **Test with large datasets** to ensure performance
+
+### Dynamic Filename Example
+
+```javascript
+const timestamp = new Date().getTime();
+const filename = `sentimiento_${timestamp}.csv`;
+a.download = filename;
+```
+
+### Custom Filename from Date
+
+```javascript
+const date = new Date().toISOString().split('T')[0];
+const filename = `sentimiento_${date}.csv`;
+a.download = filename;
+```
+
+## Browser Compatibility
+
+The download implementation works in:
+- ✅ Chrome/Edge (Chromium)
+- ✅ Firefox
+- ✅ Safari 10.1+
+- ✅ Modern mobile browsers
+
+<Tip>
+  For better UX, disable the export button when there are no results to export and show a tooltip explaining why.
+</Tip>
+
+<Warning>
+  Always revoke object URLs using `window.URL.revokeObjectURL()` after download to prevent memory leaks, especially when exporting multiple times.
+</Warning>
+
+## Advanced Usage
+
+### Export with Progress Tracking
+
+```javascript
+async function exportWithProgress(results, token, onProgress) {
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_API_URL}/sentiment/export-csv`,
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(results)
+    }
+  );
+
+  const reader = response.body.getReader();
+  const contentLength = +response.headers.get('Content-Length');
+  let receivedLength = 0;
+  let chunks = [];
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    
+    chunks.push(value);
+    receivedLength += value.length;
+    
+    const progress = (receivedLength / contentLength) * 100;
+    onProgress(progress);
+  }
+
+  const blob = new Blob(chunks);
+  return blob;
+}
+```
+
+### Batch Export
+
+```javascript
+async function exportInBatches(allResults, batchSize = 1000) {
+  const batches = [];
+  
+  for (let i = 0; i < allResults.length; i += batchSize) {
+    const batch = allResults.slice(i, i + batchSize);
+    batches.push(batch);
+  }
+  
+  for (let i = 0; i < batches.length; i++) {
+    const blob = await exportCSV(batches[i]);
+    downloadBlob(blob, `resultados_batch_${i + 1}.csv`);
+  }
+}
+```

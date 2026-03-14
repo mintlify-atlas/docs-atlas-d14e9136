@@ -1,0 +1,129 @@
+---
+title: 'API Overview'
+description: 'Complete overview of the SentimentAPI endpoints and configuration'
+---
+
+## Base URL
+
+The SentimentAPI uses a configurable base URL defined through the `NEXT_PUBLIC_API_URL` environment variable.
+
+```bash
+NEXT_PUBLIC_API_URL=https://api.sentimentapi.com
+```
+
+All API requests should be made to endpoints relative to this base URL.
+
+## Authentication
+
+SentimentAPI uses Bearer token authentication. Most endpoints require an `Authorization` header:
+
+```http
+Authorization: Bearer YOUR_TOKEN_HERE
+```
+
+Tokens are obtained through the `/login` endpoint and typically expire after 2 hours.
+
+## Common Headers
+
+All requests should include the following headers:
+
+<ParamField header="Content-Type" type="string" required>
+  Set to `application/json` for JSON requests or `multipart/form-data` for file uploads
+</ParamField>
+
+<ParamField header="Authorization" type="string" required>
+  Bearer token obtained from the login endpoint (required for protected routes)
+</ParamField>
+
+## Response Format
+
+All API responses follow a consistent JSON structure:
+
+### Success Response
+
+```json
+{
+  "texto": "Sample text",
+  "prevision": "POSITIVO",
+  "probabilidad": 0.92
+}
+```
+
+### Error Response
+
+```json
+{
+  "error": "Error message description"
+}
+```
+
+## Common Status Codes
+
+<ResponseField name="200" type="OK">
+  Request successful
+</ResponseField>
+
+<ResponseField name="401" type="Unauthorized">
+  Invalid credentials or missing/expired token
+</ResponseField>
+
+<ResponseField name="403" type="Forbidden">
+  Insufficient permissions for the requested action
+</ResponseField>
+
+<ResponseField name="413" type="Payload Too Large">
+  Request body or file exceeds size limits (3MB for file uploads)
+</ResponseField>
+
+<ResponseField name="500" type="Internal Server Error">
+  Server error - retry the request later
+</ResponseField>
+
+## Rate Limiting
+
+API requests may be subject to rate limiting. Monitor response headers for rate limit information.
+
+## Error Handling
+
+When the API returns an error, the response will include:
+
+- **HTTP Status Code**: Indicates the type of error
+- **Error Message**: Descriptive message in the `error` field
+
+### Common Error Messages
+
+| Message | Cause | Resolution |
+|---------|-------|------------|
+| `Credenciales incorrectas` | Invalid email or password | Verify credentials |
+| `No se recibió un token válido` | Authentication failed | Retry login |
+| `El servicio de autenticación no está disponible` | Backend service down | Check service status |
+| `El archivo supera el límite de 3MB` | File too large | Reduce file size |
+
+## Endpoints Overview
+
+| Endpoint | Method | Auth Required | Description |
+|----------|--------|---------------|-------------|
+| `/login` | POST | No | Authenticate and receive token |
+| `/sentiment` | POST | Yes | Analyze sentiment of text |
+| `/sentiment/upload-csv` | POST | Yes | Bulk upload CSV for analysis |
+| `/sentiment/export-csv` | POST | Yes | Export results to CSV |
+| `/stats` | GET | Yes | Retrieve sentiment statistics |
+
+## SDK and Libraries
+
+Currently, the API can be accessed using standard HTTP clients. Example with fetch:
+
+```javascript
+const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/sentiment`, {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`
+  },
+  body: JSON.stringify([{ texto: 'Your text here' }])
+});
+```
+
+## Support
+
+For API support and questions, refer to the documentation sections for each specific endpoint.

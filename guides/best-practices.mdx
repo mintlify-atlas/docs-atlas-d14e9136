@@ -1,0 +1,568 @@
+---
+title: 'Best Practices'
+description: 'Optimize your sentiment analysis workflow with proven strategies and security guidelines'
+icon: 'star'
+---
+
+## Overview
+
+This guide provides recommendations for using SentimentAPI effectively, securely, and efficiently. Follow these practices to maximize accuracy, performance, and security.
+
+## When to Use Single vs Bulk Analysis
+
+Choose the right analysis method based on your use case:
+
+### Single Analysis
+
+**Use when:**
+- Analyzing individual user comments in real-time
+- Integrating sentiment checks into live chat or support systems
+- Testing the API or validating specific text samples
+- Processing low-volume data (< 10 items)
+
+**Implementation:**
+```typescript
+// Single comment analysis (app/sentiment/page.tsx:54-90)
+const dataToAnalyze = [
+  { texto: comment } 
+];
+
+const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/sentiment`, {
+  method: "POST",
+  headers: { 
+    "Content-Type": "application/json",
+    "Authorization": `Bearer ${token}`
+  },
+  body: JSON.stringify(dataToAnalyze),
+});
+```
+
+**Advantages:**
+- Immediate results
+- Lower memory overhead
+- Real-time user feedback
+
+<Tip>
+Single analysis is ideal for interactive applications where users expect instant responses.
+</Tip>
+
+### Bulk Analysis (CSV Upload)
+
+**Use when:**
+- Processing historical data or batch imports
+- Analyzing survey responses or feedback forms
+- Periodic reporting (daily, weekly, monthly reviews)
+- Processing high-volume data (10+ items)
+
+**Implementation:**
+```typescript
+// Bulk CSV upload (app/sentiment/upload-csv/page.tsx:122-194)
+const formData = new FormData();
+formData.append('file', selectedFile);
+
+const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/sentiment/upload-csv`, {
+  method: "POST",
+  headers: { "Authorization": `Bearer ${token}` },
+  body: formData,
+});
+```
+
+**Advantages:**
+- Efficient for large datasets
+- Single request for multiple analyses
+- Export and archive results easily
+- Statistical insights from aggregated data
+
+<Warning>
+Bulk uploads are limited to 3MB file size. For larger datasets, split into multiple files.
+</Warning>
+
+### Comparison Table
+
+| Feature | Single Analysis | Bulk Analysis |
+|---------|----------------|---------------|
+| **Max Items per Request** | 1 (though API accepts array) | Limited by 3MB file size |
+| **Response Time** | Instant (< 1s) | Varies with file size |
+| **Best for** | Real-time, interactive use | Batch processing, reports |
+| **Export Options** | Manual copy | CSV download |
+| **UI Location** | `/sentiment` | `/sentiment/upload-csv` |
+
+## Performance Optimization
+
+### 1. Minimize Token Usage
+
+Authentication tokens are stored in cookies with a 2-hour expiration:
+
+```typescript
+// Session token configuration (app/actions/auth.ts:25-31)
+cookieStore.set("session_token", data.token, {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "lax",
+  maxAge: 60 * 60 * 2, // 2 hours
+  path: "/",
+});
+```
+
+<Tip>
+**Best practice:** Implement token refresh logic before the 2-hour expiration to avoid session interruptions.
+</Tip>
+
+### 2. Optimize File Uploads
+
+**Client-side validation** prevents unnecessary network requests:
+
+```typescript
+// Validate before upload (app/sentiment/upload-csv/page.tsx:138-143)
+const MAX_SIZE_MB = 3 * 1024 * 1024;
+if (selectedFile.size > MAX_SIZE_MB) {
+  setMessage(`El archivo es demasiado pesado (${(selectedFile.size / (1024 * 1024)).toFixed(2)} MB). Por favor, sube uno menor a 3MB.`);
+  setUploadStatus('error');
+  return;
+}
+```
+
+**Recommendations:**
+- Validate file size before API call
+- Check file format (.csv only)
+- Display upload progress for better UX
+- Implement retry logic for network failures
+
+### 3. Handle Large Datasets Efficiently
+
+For datasets exceeding 3MB:
+
+```javascript
+function splitCSVFile(lines, maxSizeBytes = 3 * 1024 * 1024) {
+  const chunks = [];
+  let currentChunk = ['texto']; // Header
+  let currentSize = 0;
+  
+  for (let i = 1; i < lines.length; i++) {
+    const lineSize = new Blob([lines[i]]).size;
+    
+    if (currentSize + lineSize > maxSizeBytes && currentChunk.length > 1) {
+      chunks.push(currentChunk.join('\n'));
+      currentChunk = ['texto'];
+      currentSize = 0;
+    }
+    
+    currentChunk.push(lines[i]);
+    currentSize += lineSize;
+  }
+  
+  if (currentChunk.length > 1) {
+    chunks.push(currentChunk.join('\n'));
+  }
+  
+  return chunks;
+}
+```
+
+### 4. Caching and State Management
+
+Use React Context for efficient state sharing:
+
+```typescript
+// User context for authentication (context/UserContext.tsx:8-18)
+interface UserData {
+  idUser: number | string;
+  name: string;
+  role: string;
+  token: string;
+}
+
+interface UserContextType {
+  user: UserData | null;
+  setUser: (user: UserData | null) => void;
+}
+```
+
+<Note>
+The `UserContext` provides centralized authentication state, preventing redundant API calls for user data.
+</Note>
+
+## Error Handling Patterns
+
+Implement robust error handling based on actual patterns from the source code:
+
+### 1. Network and Server Errors
+
+```typescript
+// Comprehensive error handling (app/sentiment/upload-csv/page.tsx:160-174)
+try {
+  const response = await fetch(url, options);
+  
+  if (!response.ok) {
+    switch (response.status) {
+      case 401:
+        throw new Error("El archivo supera el límite de 3MB. Intenta con un archivo más pequeño.");
+      case 413:
+        throw new Error("El servidor indica que el archivo es demasiado grande.");
+      case 403:
+        throw new Error("No tienes permisos para realizar esta acción.");
+      case 500:
+        throw new Error("Error interno del servidor. Inténtalo más tarde.");
+      default:
+        throw new Error(`Ocurrió un problema inesperado (Error ${response.status})`);
+    }
+  }
+} catch (err: any) {
+  if (err.message === "Failed to fetch") {
+    setMessage("No se pudo conectar con el servidor. Verifica tu conexión.");
+  } else {
+    setMessage(err.message);
+  }
+  setUploadStatus('error');
+}
+```
+
+### 2. Authentication Errors
+
+```typescript
+// Session validation (app/sentiment/page.tsx:25-46)
+const token = user?.token;
+
+if (!token) {
+  return (
+    <div className="flex flex-col items-center justify-center min-h-[400px] bg-white rounded-2xl border border-dashed border-red-200 p-8 shadow-sm">
+      <ExclamationCircleIcon className="h-12 w-12 text-red-400 mb-4" />
+      <h2 className="text-xl font-bold text-gray-800">No autenticado</h2>
+      <p className="text-gray-500 text-center mt-2">
+        Tu sesión ha expirado o no has iniciado sesión. Por favor, vuelve a ingresar.
+      </p>
+      <Link href="/login">
+        <button className="mt-6 px-6 py-2 bg-primary text-white rounded-lg font-bold hover:bg-three transition-colors">
+          Ir al Login
+        </button>
+      </Link>
+    </div>
+  );
+}
+```
+
+<Warning>
+**Always validate authentication** before making API calls. Failed auth checks should redirect users to login.
+</Warning>
+
+### 3. User-Friendly Error Messages
+
+<AccordionGroup>
+  <Accordion title="Network Connection Issues">
+    **Error:** `Failed to fetch`
+    
+    **User Message:** "No se pudo conectar con el servidor. Verifica tu conexión."
+    
+    **Action:** Check network connectivity, retry request
+  </Accordion>
+
+  <Accordion title="File Size Exceeded">
+    **Error:** HTTP 401 or 413
+    
+    **User Message:** "El archivo supera el límite de 3MB. Intenta con un archivo más pequeño."
+    
+    **Action:** Split file or reduce dataset size
+  </Accordion>
+
+  <Accordion title="Permission Denied">
+    **Error:** HTTP 403
+    
+    **User Message:** "No tienes permisos para realizar esta acción."
+    
+    **Action:** Verify user role and permissions
+  </Accordion>
+
+  <Accordion title="Server Error">
+    **Error:** HTTP 500
+    
+    **User Message:** "Error interno del servidor. Inténtalo más tarde."
+    
+    **Action:** Retry after delay, contact support if persistent
+  </Accordion>
+</AccordionGroup>
+
+## Session Management Best Practices
+
+### 1. Token Storage and Security
+
+Tokens are stored as HTTP-only cookies for security:
+
+```typescript
+// Secure token storage (app/actions/auth.ts:24-31)
+if (data.token) {
+  const cookieStore = await cookies();
+  cookieStore.set("session_token", data.token, {
+    httpOnly: true,                              // Prevents XSS attacks
+    secure: process.env.NODE_ENV === "production", // HTTPS only in production
+    sameSite: "lax",                             // CSRF protection
+    maxAge: 60 * 60 * 2,                         // 2-hour expiration
+    path: "/",
+  });
+}
+```
+
+<Tip>
+**Security benefits:**
+- `httpOnly: true` prevents JavaScript access, protecting against XSS
+- `secure: true` ensures HTTPS transmission in production
+- `sameSite: "lax"` provides CSRF protection
+- 2-hour expiration limits exposure window
+</Tip>
+
+### 2. Session Expiration Handling
+
+Implement proactive session refresh:
+
+```javascript
+function setupSessionRefresh(expirationTime) {
+  // Refresh 5 minutes before expiration
+  const refreshTime = expirationTime - (5 * 60 * 1000);
+  
+  setTimeout(async () => {
+    try {
+      await refreshAuthToken();
+    } catch (error) {
+      // Redirect to login if refresh fails
+      window.location.href = '/login';
+    }
+  }, refreshTime);
+}
+```
+
+### 3. Graceful Session Expiry
+
+Show clear messages when sessions expire:
+
+```typescript
+// Check session before critical operations
+if (!token) {
+  setMessage("Sesión expirada. Por favor, inicia sesión nuevamente.");
+  setUploadStatus('error');
+  return;
+}
+```
+
+## Security Considerations
+
+### 1. API Token Protection
+
+<Warning>
+**Never expose API tokens in:**
+- Client-side code
+- Git repositories
+- Browser console logs
+- URL parameters
+- Local storage (use HTTP-only cookies instead)
+</Warning>
+
+### 2. Input Validation
+
+Always validate user input before processing:
+
+```typescript
+// Validate file selection
+if (!selectedFile) {
+  setMessage("Por favor, selecciona un archivo primero.");
+  setUploadStatus('error');
+  return;
+}
+
+// Validate file type
+if (!selectedFile.name.endsWith('.csv')) {
+  setMessage("Solo se aceptan archivos CSV.");
+  setUploadStatus('error');
+  return;
+}
+```
+
+### 3. Environment Variables
+
+Use environment variables for sensitive configuration:
+
+```bash
+# .env.local
+NEXT_PUBLIC_API_URL=https://api.sentimentapi.com
+SESSION_SECRET=your-secret-key-here
+```
+
+```typescript
+// Access in code
+const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+```
+
+<Note>
+Variables prefixed with `NEXT_PUBLIC_` are exposed to the browser. Keep sensitive keys private.
+</Note>
+
+### 4. HTTPS Enforcement
+
+Always use HTTPS in production:
+
+```typescript
+// Environment-specific security (app/actions/auth.ts:26)
+secure: process.env.NODE_ENV === "production"
+```
+
+## Rate Limiting and Usage Guidelines
+
+### Recommended Usage Patterns
+
+1. **Implement request throttling** for bulk operations
+2. **Cache results** when analyzing the same content multiple times
+3. **Batch requests** instead of making individual calls
+4. **Monitor API response times** and adjust accordingly
+
+### Example: Request Throttling
+
+```javascript
+class APIThrottler {
+  constructor(maxRequestsPerMinute = 60) {
+    this.maxRequests = maxRequestsPerMinute;
+    this.requests = [];
+  }
+  
+  async throttle() {
+    const now = Date.now();
+    this.requests = this.requests.filter(time => now - time < 60000);
+    
+    if (this.requests.length >= this.maxRequests) {
+      const waitTime = 60000 - (now - this.requests[0]);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+    }
+    
+    this.requests.push(now);
+  }
+  
+  async request(url, options) {
+    await this.throttle();
+    return fetch(url, options);
+  }
+}
+
+const throttler = new APIThrottler(60);
+```
+
+## Data Privacy and Compliance
+
+### 1. User Data Handling
+
+- **Minimize data collection**: Only analyze necessary text
+- **Clear data retention policies**: Define how long results are stored
+- **Anonymize sensitive information**: Remove PII before analysis
+- **Secure data transmission**: Always use HTTPS
+
+### 2. GDPR Compliance
+
+If processing EU user data:
+
+- Obtain explicit consent before analysis
+- Provide data export capabilities (CSV export feature)
+- Allow users to delete their data
+- Document data processing activities
+
+### 3. Export and Audit
+
+Use the CSV export feature for compliance and auditing:
+
+```typescript
+// Export results for audit (app/sentiment/upload-csv/page.tsx:60-112)
+const handleExportCSV = async (e: React.MouseEvent<HTMLButtonElement>) => {
+  e.preventDefault();
+  setDowloading(true);
+  
+  try {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/sentiment/export-csv`, {
+      method: "POST",
+      headers: { 
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(resultados),
+    });
+    
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = "resultados_sentimiento.csv";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  } catch (err) {
+    console.error('Export failed:', err);
+  }
+};
+```
+
+## Monitoring and Logging
+
+### Track Key Metrics
+
+1. **API Response Times**: Monitor latency for performance issues
+2. **Error Rates**: Track failed requests by error type
+3. **Usage Patterns**: Analyze peak usage times
+4. **Authentication Failures**: Monitor suspicious login attempts
+
+### Example: Basic Logging
+
+```javascript
+function logAPICall(endpoint, status, duration) {
+  const logEntry = {
+    timestamp: new Date().toISOString(),
+    endpoint,
+    status,
+    duration,
+    user: user?.idUser
+  };
+  
+  // Send to logging service
+  console.log('[API Call]', logEntry);
+  
+  // Optional: Send to analytics
+  if (typeof analytics !== 'undefined') {
+    analytics.track('API Call', logEntry);
+  }
+}
+```
+
+## Quick Reference Checklist
+
+<AccordionGroup>
+  <Accordion title="Before Going Live">
+    - [ ] Implement token refresh logic
+    - [ ] Add comprehensive error handling
+    - [ ] Validate all user inputs
+    - [ ] Set up HTTPS enforcement
+    - [ ] Configure environment variables
+    - [ ] Test session expiration flows
+    - [ ] Implement rate limiting
+    - [ ] Add monitoring and logging
+  </Accordion>
+
+  <Accordion title="For Each Analysis Request">
+    - [ ] Validate authentication token
+    - [ ] Check file size (< 3MB for uploads)
+    - [ ] Validate CSV format and structure
+    - [ ] Handle network errors gracefully
+    - [ ] Display clear user feedback
+    - [ ] Log request for monitoring
+  </Accordion>
+
+  <Accordion title="For Production Deployment">
+    - [ ] Use HTTPS for all API calls
+    - [ ] Enable secure cookie flags
+    - [ ] Configure proper CORS settings
+    - [ ] Set up error reporting service
+    - [ ] Implement automated backups
+    - [ ] Document API usage guidelines
+    - [ ] Create incident response plan
+  </Accordion>
+</AccordionGroup>
+
+## Related Resources
+
+- [CSV Format Specification](/guides/csv-format)
+- [Interpreting Results](/guides/interpreting-results)
+- [Authentication](/authentication)
+- [API Reference](/api/overview)

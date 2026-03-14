@@ -1,0 +1,585 @@
+---
+title: 'Authentication'
+description: 'Secure your API requests with token-based authentication'
+---
+
+## Overview
+
+SentimentAPI uses token-based authentication with Bearer tokens. After logging in, you'll receive a JWT token that must be included in the Authorization header of all API requests.
+
+<Note>
+  Authentication tokens are valid for **2 hours** from the time of issuance. You'll need to re-authenticate when your token expires.
+</Note>
+
+## Login Endpoint
+
+Authenticate users and receive an access token.
+
+### Endpoint
+
+```
+POST /login
+```
+
+### Request Headers
+
+```http
+Content-Type: application/json
+```
+
+### Request Body
+
+```json
+{
+  "email": "user@example.com",
+  "contrasenia": "your_password"
+}
+```
+
+<Warning>
+  The password field is named `contrasenia` (Spanish). Using `password` will result in authentication failure.
+</Warning>
+
+### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| email | string | Yes | User's email address |
+| contrasenia | string | Yes | User's password |
+
+### Response
+
+**Success (200 OK):**
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c",
+  "idUser": 123,
+  "name": "John Doe",
+  "role": "user"
+}
+```
+
+**Error Responses:**
+
+| Status | Error Message | Description |
+|--------|---------------|-------------|
+| 401 | Credenciales incorrectas. Intenta de nuevo. | Invalid email or password |
+| 400 | No se recibió un token válido. | Server failed to generate token |
+| 503 | El servicio de autenticación no está disponible. | Authentication service is down |
+
+## Implementation Examples
+
+### Server-Side (Next.js Server Action)
+
+This is the actual implementation from the SentimentAPI source code:
+
+```typescript app/actions/auth.ts
+"use server";
+
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+
+export async function loginAction(prevState: any, formData: FormData) {
+  const email = formData.get("email");
+  const contrasenia = formData.get("contrasenia");
+
+  try {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, contrasenia }),
+    });
+
+    if (!response.ok) {
+      return { error: "Credenciales incorrectas. Intenta de nuevo." };
+    }
+
+    const data = await response.json();
+
+    if (data.token) {
+      const cookieStore = await cookies();
+      cookieStore.set("session_token", data.token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 60 * 60 * 2, // 2 hours
+        path: "/",
+      });
+    } else {
+      return { error: "No se recibió un token válido." };
+    }
+  } catch (error) {
+    return { error: "El servicio de autenticación no está disponible." };
+  }
+
+  redirect("/sentiment");
+}
+```
+
+### Client-Side (React)
+
+```typescript app/login/page.tsx
+'use client'
+import { useActionState } from "react";
+import { loginAction } from "../actions/auth";
+
+export default function LoginPage() {
+  const [state, formAction, isPending] = useActionState(loginAction, null);
+  
+  return (
+    <form action={formAction}>
+      <input
+        name="email"
+        type="email"
+        required
+        placeholder="tu@correo.com"
+      />
+      
+      <input
+        name="contrasenia"
+        type="password"
+        required
+        placeholder="••••••••"
+      />
+
+      {state?.error && (
+        <p style={{ color: "red" }}>
+          {state.error}
+        </p>
+      )}
+
+      <button disabled={isPending} type="submit">
+        {isPending ? "Cargando..." : "Iniciar Sesión"}
+      </button>
+    </form>
+  );
+}
+```
+
+### Generic HTTP Client
+
+<CodeGroup>
+```javascript Node.js/Fetch
+const login = async (email, password) => {
+  try {
+    const response = await fetch('https://api.sentimentapi.com/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: email,
+        contrasenia: password
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error('Credenciales incorrectas. Intenta de nuevo.');
+    }
+
+    const data = await response.json();
+    
+    if (!data.token) {
+      throw new Error('No se recibió un token válido.');
+    }
+
+    // Store token securely
+    localStorage.setItem('auth_token', data.token);
+    localStorage.setItem('user_data', JSON.stringify({
+      idUser: data.idUser,
+      name: data.name,
+      role: data.role
+    }));
+
+    return data;
+  } catch (error) {
+    console.error('Authentication error:', error);
+    throw error;
+  }
+};
+```
+
+```python Python
+import requests
+from datetime import datetime, timedelta
+
+class SentimentAPIAuth:
+    def __init__(self, base_url='https://api.sentimentapi.com'):
+        self.base_url = base_url
+        self.token = None
+        self.token_expiry = None
+    
+    def login(self, email, password):
+        try:
+            response = requests.post(
+                f'{self.base_url}/login',
+                json={
+                    'email': email,
+                    'contrasenia': password
+                },
+                headers={'Content-Type': 'application/json'}
+            )
+            
+            if response.status_code != 200:
+                raise Exception('Credenciales incorrectas. Intenta de nuevo.')
+            
+            data = response.json()
+            
+            if 'token' not in data:
+                raise Exception('No se recibió un token válido.')
+            
+            self.token = data['token']
+            # Token expires in 2 hours
+            self.token_expiry = datetime.now() + timedelta(hours=2)
+            
+            return data
+            
+        except requests.exceptions.RequestException as e:
+            raise Exception('El servicio de autenticación no está disponible.')
+    
+    def is_token_valid(self):
+        if not self.token or not self.token_expiry:
+            return False
+        return datetime.now() < self.token_expiry
+```
+
+```go Go
+package main
+
+import (
+    "bytes"
+    "encoding/json"
+    "fmt"
+    "io"
+    "net/http"
+    "time"
+)
+
+type LoginRequest struct {
+    Email       string `json:"email"`
+    Contrasenia string `json:"contrasenia"`
+}
+
+type LoginResponse struct {
+    Token  string `json:"token"`
+    IDUser int    `json:"idUser"`
+    Name   string `json:"name"`
+    Role   string `json:"role"`
+}
+
+type AuthClient struct {
+    BaseURL     string
+    Token       string
+    TokenExpiry time.Time
+}
+
+func (c *AuthClient) Login(email, password string) (*LoginResponse, error) {
+    reqBody := LoginRequest{
+        Email:       email,
+        Contrasenia: password,
+    }
+
+    jsonData, err := json.Marshal(reqBody)
+    if err != nil {
+        return nil, err
+    }
+
+    resp, err := http.Post(
+        c.BaseURL+"/login",
+        "application/json",
+        bytes.NewBuffer(jsonData),
+    )
+    if err != nil {
+        return nil, fmt.Errorf("El servicio de autenticación no está disponible.")
+    }
+    defer resp.Body.Close()
+
+    if resp.StatusCode != http.StatusOK {
+        return nil, fmt.Errorf("Credenciales incorrectas. Intenta de nuevo.")
+    }
+
+    var result LoginResponse
+    if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+        return nil, err
+    }
+
+    if result.Token == "" {
+        return nil, fmt.Errorf("No se recibió un token válido.")
+    }
+
+    // Store token and set expiry (2 hours)
+    c.Token = result.Token
+    c.TokenExpiry = time.Now().Add(2 * time.Hour)
+
+    return &result, nil
+}
+```
+</CodeGroup>
+
+## Using Bearer Tokens
+
+Once authenticated, include the token in the `Authorization` header of all API requests:
+
+```http
+Authorization: Bearer YOUR_TOKEN_HERE
+```
+
+### Example: Making Authenticated Requests
+
+```javascript app/sentiment/page.tsx
+const handleAnalyze = async (token, text) => {
+  const dataToAnalyze = [{ texto: text }];
+
+  try {
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/sentiment`,
+      {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify(dataToAnalyze),
+      }
+    );
+   
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Error:", error);
+    throw error;
+  }
+};
+```
+
+## Token Storage
+
+### Session Cookies (Recommended for Web Apps)
+
+The SentimentAPI reference implementation uses HTTP-only cookies for secure token storage:
+
+```javascript
+cookieStore.set("session_token", data.token, {
+  httpOnly: true,              // Prevents JavaScript access
+  secure: true,                // HTTPS only in production
+  sameSite: "lax",            // CSRF protection
+  maxAge: 60 * 60 * 2,        // 2 hours (7200 seconds)
+  path: "/",                  // Available across entire app
+});
+```
+
+<Warning>
+  Always use `httpOnly: true` and `secure: true` in production to prevent XSS attacks and ensure tokens are only transmitted over HTTPS.
+</Warning>
+
+### Client-Side Storage
+
+For single-page applications or mobile apps:
+
+<CodeGroup>
+```javascript localStorage
+// Store token
+localStorage.setItem('auth_token', data.token);
+
+// Retrieve token
+const token = localStorage.getItem('auth_token');
+
+// Clear token on logout
+localStorage.removeItem('auth_token');
+```
+
+```javascript sessionStorage
+// Store token (cleared when browser closes)
+sessionStorage.setItem('auth_token', data.token);
+
+// Retrieve token
+const token = sessionStorage.getItem('auth_token');
+```
+
+```javascript Secure Storage (React Native)
+import * as SecureStore from 'expo-secure-store';
+
+// Store token
+await SecureStore.setItemAsync('auth_token', data.token);
+
+// Retrieve token
+const token = await SecureStore.getItemAsync('auth_token');
+```
+</CodeGroup>
+
+<Warning>
+  localStorage and sessionStorage are vulnerable to XSS attacks. Only use them if HTTP-only cookies aren't an option, and implement proper Content Security Policy (CSP) headers.
+</Warning>
+
+## Token Expiration
+
+Tokens expire after **2 hours** (7200 seconds). When a token expires:
+
+1. API requests will return a 401 Unauthorized error
+2. Users must re-authenticate to obtain a new token
+3. Any in-progress operations should be saved before re-authenticating
+
+### Handling Expired Tokens
+
+```javascript
+const makeAuthenticatedRequest = async (url, options) => {
+  const token = getStoredToken();
+  
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      ...options.headers,
+      'Authorization': `Bearer ${token}`
+    }
+  });
+
+  if (response.status === 401) {
+    // Token expired - redirect to login
+    window.location.href = '/login';
+    return;
+  }
+
+  return response.json();
+};
+```
+
+### User Context Pattern
+
+The SentimentAPI application uses React Context for managing user authentication state:
+
+```typescript context/UserContext.tsx
+interface UserData {
+  idUser: number | string;
+  name: string;
+  role: string;
+  token: string;
+}
+
+interface UserContextType {
+  user: UserData | null;
+  setUser: (user: UserData | null) => void;
+}
+
+// Usage in components
+const { user } = useUser();
+const token = user?.token;
+
+if (!token) {
+  // Redirect to login
+  return <LoginPrompt />;
+}
+```
+
+## Error Handling
+
+### Authentication Errors
+
+```javascript
+try {
+  const response = await fetch('/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, contrasenia })
+  });
+
+  if (!response.ok) {
+    throw new Error('Credenciales incorrectas. Intenta de nuevo.');
+  }
+
+  const data = await response.json();
+  
+  if (!data.token) {
+    throw new Error('No se recibió un token válido.');
+  }
+
+  // Success - store token
+  storeToken(data.token);
+  
+} catch (error) {
+  if (error.name === 'TypeError' || error.message.includes('fetch')) {
+    // Network error
+    console.error('El servicio de autenticación no está disponible.');
+  } else {
+    // Authentication error
+    console.error(error.message);
+  }
+}
+```
+
+### Request Authentication Errors
+
+```javascript
+const response = await fetch('/sentiment', {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${token}`,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify(data)
+});
+
+if (response.status === 401) {
+  // Token invalid or expired
+  alert('No estás autenticado. Por favor inicia sesión.');
+  redirectToLogin();
+}
+
+if (response.status === 403) {
+  // Token valid but insufficient permissions
+  alert('No tienes permisos para realizar esta acción.');
+}
+```
+
+## Security Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Use HTTPS" icon="lock">
+    Always transmit tokens over HTTPS to prevent interception. The `secure` cookie flag enforces this.
+  </Card>
+  
+  <Card title="HTTP-Only Cookies" icon="shield-check">
+    Store tokens in HTTP-only cookies when possible to prevent XSS attacks.
+  </Card>
+  
+  <Card title="Short Expiration" icon="clock">
+    Tokens expire after 2 hours, limiting the window of opportunity if compromised.
+  </Card>
+  
+  <Card title="Never Log Tokens" icon="eye-slash">
+    Never log, display, or expose tokens in client-side code, URLs, or error messages.
+  </Card>
+</CardGroup>
+
+## Testing Authentication
+
+Test your authentication implementation:
+
+```bash
+# Test successful login
+curl -X POST https://api.sentimentapi.com/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "test@example.com", "contrasenia": "password123"}' \
+  -v
+
+# Test with invalid credentials
+curl -X POST https://api.sentimentapi.com/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "wrong@example.com", "contrasenia": "wrongpass"}' \
+  -v
+
+# Test authenticated request
+curl -X POST https://api.sentimentapi.com/sentiment \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -d '[{"texto": "Test sentiment"}]' \
+  -v
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="API Overview" icon="book" href="/api/overview">
+    Explore all available API endpoints
+  </Card>
+  <Card title="Sentiment Analysis" icon="brain" href="/features/single-analysis">
+    Start analyzing sentiment in your application
+  </Card>
+</CardGroup>

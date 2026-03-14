@@ -1,0 +1,258 @@
+---
+title: 'Single Analysis'
+description: 'Analyze individual text sentiments using the POST /sentiment endpoint'
+icon: 'message'
+---
+
+## Overview
+
+The Single Analysis feature allows you to analyze the sentiment of individual text comments in real-time. The API processes one or more text inputs and returns sentiment predictions with probability scores.
+
+## API Endpoint
+
+```
+POST /sentiment
+```
+
+### Authentication
+
+All requests require a Bearer token in the Authorization header:
+
+```bash
+Authorization: Bearer {your_token}
+```
+
+## Request Format
+
+<Info>
+The endpoint expects an array of objects, where each object contains a `texto` field with the text to analyze.
+</Info>
+
+### Request Body
+
+```json
+[
+  {
+    "texto": "This product is amazing! I love it."
+  }
+]
+```
+
+### Headers
+
+```json
+{
+  "Content-Type": "application/json",
+  "Authorization": "Bearer {your_token}"
+}
+```
+
+## Response Format
+
+The API returns an array of `SentimentAnalysisResult` objects:
+
+```typescript
+interface SentimentAnalysisResult {
+  texto: string;
+  prevision: 'POSITIVO' | 'NEGATIVO';
+  probabilidad: number;
+}
+```
+
+### Response Example
+
+```json
+[
+  {
+    "texto": "This product is amazing! I love it.",
+    "prevision": "POSITIVO",
+    "probabilidad": 0.9234
+  }
+]
+```
+
+### Field Descriptions
+
+<Steps>
+  <Step title="texto">
+    The original text that was analyzed
+  </Step>
+  <Step title="prevision">
+    Sentiment prediction: either `POSITIVO` or `NEGATIVO`
+  </Step>
+  <Step title="probabilidad">
+    Confidence score as a decimal (0-1), where higher values indicate greater confidence
+  </Step>
+</Steps>
+
+## Code Examples
+
+<CodeGroup>
+
+```typescript TypeScript/React
+const analyzeSentiment = async (comment: string, token: string) => {
+  const dataToAnalyze = [
+    { texto: comment }
+  ];
+
+  try {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/sentiment`, {
+      method: "POST",
+      headers: { 
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
+      body: JSON.stringify(dataToAnalyze),
+    });
+   
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Error:", error);
+    throw error;
+  }
+};
+```
+
+```javascript JavaScript
+const analyzeSentiment = async (comment, token) => {
+  const dataToAnalyze = [
+    { texto: comment }
+  ];
+
+  const response = await fetch(`${API_URL}/sentiment`, {
+    method: "POST",
+    headers: { 
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`
+    },
+    body: JSON.stringify(dataToAnalyze),
+  });
+ 
+  const data = await response.json();
+  return data;
+};
+```
+
+```python Python
+import requests
+import json
+
+def analyze_sentiment(comment: str, token: str):
+    url = f"{API_URL}/sentiment"
+    
+    data = [{"texto": comment}]
+    
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {token}"
+    }
+    
+    response = requests.post(url, json=data, headers=headers)
+    return response.json()
+```
+
+```bash cURL
+curl -X POST https://api.example.com/sentiment \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -d '[{"texto": "This product is amazing! I love it."}]'
+```
+
+</CodeGroup>
+
+## Frontend Implementation
+
+Here's how the sentiment analysis is implemented in the application:
+
+```tsx
+const [comment, setComment] = useState('');
+const [results, setResults] = useState<SentimentAnalysisResult[]>([]);
+const [loading, setLoading] = useState(false);
+
+const handleAnalyze = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setLoading(true);
+
+  const dataToAnalyze = [
+    { texto: comment } 
+  ];
+
+  try {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/sentiment`, {
+      method: "POST",
+      headers: { 
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
+      body: JSON.stringify(dataToAnalyze),
+    });
+   
+    const data = await response.json();
+    setResults(data);
+  } catch (error) {
+    console.error("Error:", error);
+  } finally {
+    setLoading(false);
+  }
+};
+```
+
+## Error Handling
+
+<Note>
+Always implement proper error handling to manage network failures and authentication issues.
+</Note>
+
+### Common Errors
+
+| Status Code | Description | Solution |
+|-------------|-------------|----------|
+| 401 | Unauthorized - Invalid or expired token | Re-authenticate and obtain a new token |
+| 400 | Bad Request - Invalid request format | Check that request body matches expected format |
+| 500 | Internal Server Error | Retry the request or contact support |
+
+## Best Practices
+
+<Steps>
+  <Step title="Input Validation">
+    Validate user input before sending to the API to ensure non-empty text
+  </Step>
+  <Step title="Loading States">
+    Implement loading indicators to improve user experience during API calls
+  </Step>
+  <Step title="Error Feedback">
+    Display clear error messages to users when analysis fails
+  </Step>
+  <Step title="Token Management">
+    Securely store and refresh authentication tokens
+  </Step>
+</Steps>
+
+## Displaying Results
+
+The probability value can be displayed as a percentage:
+
+```typescript
+const probabilityPercentage = (probabilidad * 100).toFixed(1);
+// Example: 0.9234 -> "92.3%"
+```
+
+### Visual Indicators
+
+You can enhance the user experience with visual indicators:
+
+- **Color Coding**: Green for POSITIVO, red for NEGATIVO
+- **Icons**: Smile icon for positive, frown icon for negative
+- **Progress Bars**: Visual representation of confidence level
+
+```tsx
+<div className="w-16 h-1.5 bg-gray-200 rounded-full">
+  <div 
+    className={`h-full rounded-full ${
+      prevision === 'POSITIVO' ? 'bg-green-500' : 'bg-red-500'
+    }`}
+    style={{ width: `${probabilidad * 100}%` }}
+  />
+</div>
+```

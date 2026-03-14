@@ -1,0 +1,310 @@
+---
+title: 'Sentiment Analysis'
+description: 'Analyze sentiment of text using AI-powered classification'
+---
+
+## POST /sentiment
+
+Analyze the sentiment of one or more text samples and receive predictions with confidence scores.
+
+### Endpoint
+
+```http
+POST /sentiment
+```
+
+### Authentication
+
+<ParamField header="Authorization" type="string" required>
+  Bearer token obtained from the `/login` endpoint
+</ParamField>
+
+### Request Headers
+
+<ParamField header="Content-Type" type="string" required>
+  Must be set to `application/json`
+</ParamField>
+
+<ParamField header="Authorization" type="string" required>
+  Format: `Bearer YOUR_TOKEN`
+</ParamField>
+
+### Request Body
+
+The request body should be an array of objects containing text to analyze.
+
+<ParamField body="texto" type="string" required>
+  The text content to analyze for sentiment
+</ParamField>
+
+**Format:**
+```json
+[
+  { "texto": "string" },
+  { "texto": "string" }
+]
+```
+
+### Request Examples
+
+<CodeGroup>
+```javascript JavaScript
+const token = 'YOUR_TOKEN_HERE';
+
+const dataToAnalyze = [
+  { texto: 'This product is amazing! I love it.' }
+];
+
+const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/sentiment`, {
+  method: 'POST',
+  headers: { 
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`
+  },
+  body: JSON.stringify(dataToAnalyze)
+});
+
+const results = await response.json();
+console.log(results);
+```
+
+```bash cURL
+curl -X POST https://api.sentimentapi.com/sentiment \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -d '[{
+    "texto": "This product is amazing! I love it."
+  }]'
+```
+
+```python Python
+import requests
+import os
+
+token = os.getenv('AUTH_TOKEN')
+url = f"{os.getenv('API_URL')}/sentiment"
+
+headers = {
+    'Content-Type': 'application/json',
+    'Authorization': f'Bearer {token}'
+}
+
+payload = [
+    {"texto": "This product is amazing! I love it."}
+]
+
+response = requests.post(url, json=payload, headers=headers)
+results = response.json()
+
+for result in results:
+    print(f"Text: {result['texto']}")
+    print(f"Sentiment: {result['prevision']}")
+    print(f"Confidence: {result['probabilidad']:.2%}")
+```
+</CodeGroup>
+
+### Multiple Text Analysis
+
+You can analyze multiple texts in a single request:
+
+```javascript
+const dataToAnalyze = [
+  { texto: 'This is great!' },
+  { texto: 'I am very disappointed.' },
+  { texto: 'The service was okay.' }
+];
+
+const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/sentiment`, {
+  method: 'POST',
+  headers: { 
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`
+  },
+  body: JSON.stringify(dataToAnalyze)
+});
+```
+
+### Response
+
+The API returns an array of sentiment analysis results matching the input order.
+
+<ResponseField name="texto" type="string">
+  The original text that was analyzed
+</ResponseField>
+
+<ResponseField name="prevision" type="string">
+  Sentiment prediction: `POSITIVO` or `NEGATIVO`
+</ResponseField>
+
+<ResponseField name="probabilidad" type="number">
+  Confidence score between 0 and 1 (e.g., 0.92 = 92% confidence)
+</ResponseField>
+
+### Success Response (200 OK)
+
+```json
+[
+  {
+    "texto": "This product is amazing! I love it.",
+    "prevision": "POSITIVO",
+    "probabilidad": 0.95
+  }
+]
+```
+
+### Multiple Results Example
+
+```json
+[
+  {
+    "texto": "This is great!",
+    "prevision": "POSITIVO",
+    "probabilidad": 0.92
+  },
+  {
+    "texto": "I am very disappointed.",
+    "prevision": "NEGATIVO",
+    "probabilidad": 0.88
+  },
+  {
+    "texto": "The service was okay.",
+    "prevision": "POSITIVO",
+    "probabilidad": 0.62
+  }
+]
+```
+
+## Understanding Results
+
+### Prediction Values
+
+<Expandable title="POSITIVO">
+  Indicates positive sentiment. The text expresses satisfaction, happiness, or approval.
+  
+  **Examples:**
+  - "This product is amazing!"
+  - "I love the new features"
+  - "Excellent service"
+</Expandable>
+
+<Expandable title="NEGATIVO">
+  Indicates negative sentiment. The text expresses dissatisfaction, sadness, or disapproval.
+  
+  **Examples:**
+  - "This is terrible"
+  - "Very disappointed with the quality"
+  - "Worst experience ever"
+</Expandable>
+
+### Probability Interpretation
+
+The `probabilidad` field indicates the model's confidence:
+
+| Range | Interpretation |
+|-------|----------------|
+| 0.9 - 1.0 | Very high confidence |
+| 0.7 - 0.89 | High confidence |
+| 0.5 - 0.69 | Moderate confidence |
+| 0.0 - 0.49 | Low confidence |
+
+<Tip>
+  For critical applications, consider texts with probability > 0.7 as reliable predictions.
+</Tip>
+
+## Error Responses
+
+<Expandable title="401 Unauthorized">
+  **Response:**
+  ```json
+  {
+    "error": "No estás autenticado. Por favor inicia sesión."
+  }
+  ```
+  
+  **Cause:** Missing or invalid authentication token.
+  
+  **Solution:** Obtain a valid token from the `/login` endpoint.
+</Expandable>
+
+<Expandable title="400 Bad Request">
+  **Cause:** Invalid request format or empty text array.
+  
+  **Solution:** Ensure the request body is an array of objects with `texto` field.
+</Expandable>
+
+<Expandable title="500 Internal Server Error">
+  **Cause:** Server-side processing error.
+  
+  **Solution:** Retry the request or contact support if the issue persists.
+</Expandable>
+
+## Best Practices
+
+1. **Batch requests** when analyzing multiple texts to reduce API calls
+2. **Sanitize input** to remove special characters that may affect analysis
+3. **Handle edge cases** like empty strings or very short texts
+4. **Monitor probability scores** to identify uncertain predictions
+5. **Cache results** for identical texts to improve performance
+
+## Implementation Example
+
+Here's a complete React implementation:
+
+```jsx
+import { useState } from 'react';
+
+function SentimentAnalyzer({ token }) {
+  const [text, setText] = useState('');
+  const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const analyzeText = async () => {
+    setLoading(true);
+    
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/sentiment`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify([{ texto: text }])
+        }
+      );
+      
+      const data = await response.json();
+      setResult(data[0]);
+    } catch (error) {
+      console.error('Analysis failed:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div>
+      <textarea 
+        value={text} 
+        onChange={(e) => setText(e.target.value)}
+        placeholder="Enter text to analyze..."
+      />
+      <button onClick={analyzeText} disabled={loading}>
+        {loading ? 'Analyzing...' : 'Analyze Sentiment'}
+      </button>
+      
+      {result && (
+        <div>
+          <p>Sentiment: {result.prevision}</p>
+          <p>Confidence: {(result.probabilidad * 100).toFixed(1)}%</p>
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+<Warning>
+  Always validate and sanitize user input before sending to the API to prevent injection attacks.
+</Warning>

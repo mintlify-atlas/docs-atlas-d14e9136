@@ -1,0 +1,400 @@
+---
+title: 'Statistics'
+description: 'Retrieve sentiment analysis statistics and historical data'
+---
+
+## GET /stats
+
+Retrieve sentiment analysis statistics for previously analyzed comments with pagination support.
+
+### Endpoint
+
+```http
+GET /stats
+```
+
+### Authentication
+
+<ParamField header="Authorization" type="string" required>
+  Bearer token obtained from the `/login` endpoint
+</ParamField>
+
+### Request Headers
+
+<ParamField header="Content-Type" type="string" required>
+  Must be set to `application/json`
+</ParamField>
+
+<ParamField header="Authorization" type="string" required>
+  Format: `Bearer YOUR_TOKEN`
+</ParamField>
+
+### Query Parameters
+
+<ParamField query="size" type="number" required>
+  Number of most recent comments to retrieve
+  - **Example:** `50` returns the last 50 analyzed comments
+  - **Use case:** Pagination and limiting result sets
+</ParamField>
+
+### Request Examples
+
+<CodeGroup>
+```javascript JavaScript
+const token = 'YOUR_TOKEN_HERE';
+const numberOfComments = 50;
+
+const response = await fetch(
+  `${process.env.NEXT_PUBLIC_API_URL}/stats?size=${numberOfComments}`,
+  {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    }
+  }
+);
+
+const data = await response.json();
+console.log(`Total comments: ${data.total_en_pagina}`);
+console.log(`Positive: ${data.positivos}%`);
+console.log(`Negative: ${data.negativos}%`);
+```
+
+```bash cURL
+curl -X GET "https://api.sentimentapi.com/stats?size=50" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+```python Python
+import requests
+import os
+
+token = os.getenv('AUTH_TOKEN')
+url = f"{os.getenv('API_URL')}/stats"
+
+headers = {
+    'Content-Type': 'application/json',
+    'Authorization': f'Bearer {token}'
+}
+
+params = {'size': 50}
+
+response = requests.get(url, headers=headers, params=params)
+data = response.json()
+
+print(f"Total: {data['total_en_pagina']}")
+print(f"Positive: {data['positivos']}%")
+print(f"Negative: {data['negativos']}%")
+print(f"Total pages: {data['totalPages']}")
+```
+</CodeGroup>
+
+### Response
+
+The API returns a paginated response with statistics and individual comment results.
+
+<ResponseField name="total_en_pagina" type="number">
+  Total number of comments in the current page/response
+</ResponseField>
+
+<ResponseField name="positivos" type="string">
+  Percentage of positive comments (e.g., "65.5" represents 65.5%)
+</ResponseField>
+
+<ResponseField name="negativos" type="string">
+  Percentage of negative comments (e.g., "34.5" represents 34.5%)
+</ResponseField>
+
+<ResponseField name="content" type="array">
+  Array of individual sentiment results
+  
+  <Expandable title="Content Object Properties">
+    <ResponseField name="id" type="number">
+      Unique identifier for the comment
+    </ResponseField>
+    
+    <ResponseField name="comentario" type="string">
+      The original text that was analyzed
+    </ResponseField>
+    
+    <ResponseField name="prevision" type="string">
+      Sentiment prediction: `POSITIVO` or `NEGATIVO`
+    </ResponseField>
+    
+    <ResponseField name="probabilidad" type="number">
+      Confidence score between 0 and 1
+    </ResponseField>
+    
+    <ResponseField name="fecharegistro" type="string">
+      Timestamp when the comment was analyzed (ISO 8601 format)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="totalElements" type="number">
+  Total number of comments in the database
+</ResponseField>
+
+<ResponseField name="totalPages" type="number">
+  Total number of pages available
+</ResponseField>
+
+<ResponseField name="number" type="number">
+  Current page number (0-indexed)
+</ResponseField>
+
+### Success Response (200 OK)
+
+```json
+{
+  "total_en_pagina": 50,
+  "positivos": "66.0",
+  "negativos": "34.0",
+  "content": [
+    {
+      "id": 1234,
+      "comentario": "Excellent service and great product quality!",
+      "prevision": "POSITIVO",
+      "probabilidad": 0.94,
+      "fecharegistro": "2026-03-14T18:30:00Z"
+    },
+    {
+      "id": 1235,
+      "comentario": "Very disappointed with the delivery time",
+      "prevision": "NEGATIVO",
+      "probabilidad": 0.87,
+      "fecharegistro": "2026-03-14T18:25:00Z"
+    },
+    {
+      "id": 1236,
+      "comentario": "Good value for money",
+      "prevision": "POSITIVO",
+      "probabilidad": 0.82,
+      "fecharegistro": "2026-03-14T18:20:00Z"
+    }
+  ],
+  "totalElements": 1500,
+  "totalPages": 30,
+  "number": 0
+}
+```
+
+## Understanding the Response
+
+### Statistics Summary
+
+The top-level fields provide aggregate statistics:
+
+- **total_en_pagina**: Count of comments in current response
+- **positivos**: Percentage as string (parse as float for calculations)
+- **negativos**: Percentage as string (parse as float for calculations)
+
+### Pagination Information
+
+- **totalElements**: Total records across all pages
+- **totalPages**: Number of pages at current page size
+- **number**: Current page (0-indexed)
+
+### Content Array
+
+Each item in `content` represents a single analyzed comment with:
+- Full text (`comentario`)
+- Prediction result (`prevision`)
+- Confidence score (`probabilidad`)
+- Analysis timestamp (`fecharegistro`)
+
+## Error Responses
+
+<Expandable title="401 Unauthorized">
+  **Response:**
+  ```json
+  {
+    "error": "Token inválido o expirado"
+  }
+  ```
+  
+  **Cause:** Missing or invalid authentication token.
+  
+  **Solution:** Obtain a new token from `/login`.
+</Expandable>
+
+<Expandable title="400 Bad Request">
+  **Response:**
+  ```json
+  {
+    "error": "Parámetro 'size' requerido"
+  }
+  ```
+  
+  **Cause:** Missing required `size` query parameter.
+  
+  **Solution:** Include `?size=NUMBER` in the URL.
+</Expandable>
+
+<Expandable title="500 Internal Server Error">
+  **Response:**
+  ```json
+  {
+    "error": "No se pudo conectar con el servidor. Verifica tu conexión."
+  }
+  ```
+  
+  **Cause:** Server unavailable or database connection issue.
+  
+  **Solution:** Retry the request or check server status.
+</Expandable>
+
+## Usage Examples
+
+### Display Statistics Dashboard
+
+```javascript
+function StatisticsDashboard({ token }) {
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const fetchStats = async (size = 100) => {
+    setLoading(true);
+    
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/stats?size=${size}`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        }
+      );
+      
+      const data = await response.json();
+      setStats(data);
+    } catch (error) {
+      console.error('Failed to fetch stats:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div>
+      <h2>Sentiment Analysis Statistics</h2>
+      {stats && (
+        <>
+          <div className="stats-summary">
+            <p>Total Comments: {stats.total_en_pagina}</p>
+            <p>Positive: {parseFloat(stats.positivos).toFixed(1)}%</p>
+            <p>Negative: {parseFloat(stats.negativos).toFixed(1)}%</p>
+          </div>
+          
+          <table>
+            <thead>
+              <tr>
+                <th>Comment</th>
+                <th>Sentiment</th>
+                <th>Confidence</th>
+                <th>Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {stats.content.map(item => (
+                <tr key={item.id}>
+                  <td>{item.comentario}</td>
+                  <td>{item.prevision}</td>
+                  <td>{(item.probabilidad * 100).toFixed(1)}%</td>
+                  <td>{new Date(item.fecharegistro).toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+    </div>
+  );
+}
+```
+
+### Calculate Additional Metrics
+
+```javascript
+function analyzeStatistics(data) {
+  const { content, positivos, negativos } = data;
+  
+  // Average confidence for positive comments
+  const positiveComments = content.filter(c => c.prevision === 'POSITIVO');
+  const avgPositiveConfidence = positiveComments.reduce(
+    (sum, c) => sum + c.probabilidad, 0
+  ) / positiveComments.length;
+  
+  // Average confidence for negative comments
+  const negativeComments = content.filter(c => c.prevision === 'NEGATIVO');
+  const avgNegativeConfidence = negativeComments.reduce(
+    (sum, c) => sum + c.probabilidad, 0
+  ) / negativeComments.length;
+  
+  // Comments by hour
+  const commentsByHour = content.reduce((acc, comment) => {
+    const hour = new Date(comment.fecharegistro).getHours();
+    acc[hour] = (acc[hour] || 0) + 1;
+    return acc;
+  }, {});
+  
+  return {
+    avgPositiveConfidence,
+    avgNegativeConfidence,
+    commentsByHour,
+    positivePercentage: parseFloat(positivos),
+    negativePercentage: parseFloat(negativos)
+  };
+}
+```
+
+## Pagination Strategies
+
+### Load More Pattern
+
+```javascript
+const [allComments, setAllComments] = useState([]);
+const [currentSize, setCurrentSize] = useState(50);
+
+const loadMore = async () => {
+  const newSize = currentSize + 50;
+  const response = await fetchStats(newSize);
+  setAllComments(response.content);
+  setCurrentSize(newSize);
+};
+```
+
+### Fixed Page Size
+
+```javascript
+const PAGE_SIZE = 100;
+
+async function getPage(pageNumber) {
+  // Note: API uses size parameter, not page offset
+  // To get "page 2", you'd request size=200 and slice client-side
+  const response = await fetchStats(PAGE_SIZE * (pageNumber + 1));
+  const startIdx = PAGE_SIZE * pageNumber;
+  return response.content.slice(startIdx, startIdx + PAGE_SIZE);
+}
+```
+
+## Best Practices
+
+1. **Cache results** to avoid repeated API calls for the same data
+2. **Parse percentages** as floats: `parseFloat(data.positivos)`
+3. **Format dates** consistently for better UX
+4. **Handle empty results** when no comments are available
+5. **Monitor totalPages** to implement proper pagination
+6. **Use appropriate page sizes** (50-200 comments recommended)
+
+<Tip>
+  For real-time dashboards, poll this endpoint every 30-60 seconds with a reasonable `size` parameter.
+</Tip>
+
+<Warning>
+  The `positivos` and `negativos` fields are returned as strings. Always parse them as floats before performing calculations.
+</Warning>

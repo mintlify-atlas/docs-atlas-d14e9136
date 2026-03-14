@@ -1,0 +1,443 @@
+---
+title: 'Statistics Dashboard'
+description: 'Retrieve and visualize sentiment analysis statistics from stored data'
+icon: 'chart-line'
+---
+
+## Overview
+
+The Statistics Dashboard provides aggregate sentiment analysis data for previously analyzed comments stored in the database. You can retrieve the most recent comments with their sentiment classifications and view summary statistics.
+
+## API Endpoint
+
+```
+GET /stats
+```
+
+### Authentication
+
+All requests require a Bearer token in the Authorization header:
+
+```bash
+Authorization: Bearer {your_token}
+```
+
+## Query Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `size` | number | Yes | Number of recent comments to retrieve |
+
+### Example Request
+
+```bash
+GET /stats?size=50
+```
+
+## Response Format
+
+The API returns a `SentimentApiResponse` object:
+
+```typescript
+interface SentimentApiResponse {
+  total_en_pagina: number;      // Total comments in current page
+  positivos: string;             // Percentage of positive comments
+  negativos: string;             // Percentage of negative comments
+  content: SentimentResult[];    // Array of individual results
+  totalElements: number;         // Total elements available
+  totalPages: number;            // Total pages available
+  number: number;                // Current page number
+}
+
+interface SentimentResult {
+  id: number;
+  comentario: string;
+  prevision: 'POSITIVO' | 'NEGATIVO';
+  probabilidad: number;
+  fecharegistro: string;
+}
+```
+
+### Response Example
+
+```json
+{
+  "total_en_pagina": 50,
+  "positivos": "64.5",
+  "negativos": "35.5",
+  "content": [
+    {
+      "id": 1234,
+      "comentario": "Excellent service and fast delivery!",
+      "prevision": "POSITIVO",
+      "probabilidad": 0.9234,
+      "fecharegistro": "2024-03-15T10:30:00Z"
+    },
+    {
+      "id": 1235,
+      "comentario": "Product quality is poor.",
+      "prevision": "NEGATIVO",
+      "probabilidad": 0.8456,
+      "fecharegistro": "2024-03-15T10:25:00Z"
+    }
+  ],
+  "totalElements": 1000,
+  "totalPages": 20,
+  "number": 0
+}
+```
+
+## Field Descriptions
+
+<Steps>
+  <Step title="total_en_pagina">
+    The total number of comments returned in the current response
+  </Step>
+  <Step title="positivos">
+    Percentage of positive sentiment comments as a string (e.g., "64.5")
+  </Step>
+  <Step title="negativos">
+    Percentage of negative sentiment comments as a string (e.g., "35.5")
+  </Step>
+  <Step title="content">
+    Array of individual comment analysis results with timestamps
+  </Step>
+  <Step title="totalElements">
+    Total number of analyzed comments available in the database
+  </Step>
+  <Step title="totalPages">
+    Number of pages available for pagination
+  </Step>
+  <Step title="number">
+    Current page number (0-indexed)
+  </Step>
+</Steps>
+
+## Code Examples
+
+<CodeGroup>
+
+```typescript TypeScript/React
+const fetchStatistics = async (size: number, token: string) => {
+  try {
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/stats?size=${size}`,
+      {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+      }
+    );
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Error fetching statistics:", error);
+    throw error;
+  }
+};
+```
+
+```javascript JavaScript
+const fetchStatistics = async (size, token) => {
+  const response = await fetch(
+    `${API_URL}/stats?size=${size}`,
+    {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
+    }
+  );
+
+  return await response.json();
+};
+```
+
+```python Python
+import requests
+
+def fetch_statistics(size: int, token: str):
+    url = f"{API_URL}/stats"
+    
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {token}"
+    }
+    
+    params = {"size": size}
+    
+    response = requests.get(url, headers=headers, params=params)
+    response.raise_for_status()
+    
+    return response.json()
+```
+
+```bash cURL
+curl -X GET "https://api.example.com/stats?size=50" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+</CodeGroup>
+
+## Full Implementation Example
+
+```tsx
+interface SentimentResult {
+  id: number;
+  comentario: string;
+  prevision: 'POSITIVO' | 'NEGATIVO';
+  probabilidad: number;
+  fecharegistro: string;
+}
+
+interface SentimentApiResponse {
+  total_en_pagina: number;
+  positivos: string;
+  negativos: string;
+  content: SentimentResult[];
+  totalElements: number;
+  totalPages: number;
+  number: number;
+}
+
+const [comment, setComment] = useState('');
+const [dataResponse, setDataResponse] = useState<SentimentApiResponse | null>(null);
+const [resultado, setResultado] = useState<SentimentResult[]>([]);
+const [loading, setLoading] = useState(false);
+const [message, setMessage] = useState('');
+
+const handleAnalyze = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setLoading(true);
+
+  const numComent = parseInt(comment);
+
+  try {
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/stats?size=${numComent}`,
+      {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+      }
+    );
+
+    const data = await response.json();
+    setDataResponse(data);
+    setResultado(data?.content);
+  } catch (err: any) {
+    if (err.message === "Failed to fetch") {
+      setMessage("No se pudo conectar con el servidor. Verifica tu conexión.");
+    } else {
+      setMessage(err.message);
+    }
+  } finally {
+    setLoading(false);
+  }
+};
+```
+
+## Displaying Statistics
+
+### Summary Cards
+
+Display aggregate statistics in visual cards:
+
+```tsx
+{/* Total Comments */}
+<div className="stat-card">
+  <span>Total Comentarios</span>
+  <p className="stat-value">{dataResponse?.total_en_pagina ?? 0}</p>
+</div>
+
+{/* Positive Percentage */}
+<div className="stat-card positive">
+  <span>Positivos</span>
+  <p className="stat-value">
+    {dataResponse?.positivos 
+      ? parseFloat(dataResponse.positivos).toFixed(1) 
+      : 0}%
+  </p>
+</div>
+
+{/* Negative Percentage */}
+<div className="stat-card negative">
+  <span>Negativos</span>
+  <p className="stat-value">
+    {dataResponse?.negativos 
+      ? parseFloat(dataResponse.negativos).toFixed(1) 
+      : 0}%
+  </p>
+</div>
+```
+
+### Results Table
+
+Display individual comment results:
+
+```tsx
+<table>
+  <thead>
+    <tr>
+      <th>Comentario</th>
+      <th>Prevision</th>
+      <th>Probabilidad</th>
+    </tr>
+  </thead>
+  <tbody>
+    {resultado?.map((res, index) => (
+      <tr key={index}>
+        <td>{res.comentario}</td>
+        <td>
+          <span className={res.prevision === 'POSITIVO' ? 'positive' : 'negative'}>
+            {res.prevision}
+          </span>
+        </td>
+        <td>
+          <div className="probability">
+            <span>{(res.probabilidad * 100).toFixed(1)}%</span>
+            <div className="progress-bar">
+              <div 
+                className={res.prevision === 'POSITIVO' ? 'positive-bar' : 'negative-bar'}
+                style={{ width: `${res.probabilidad * 100}%` }}
+              />
+            </div>
+          </div>
+        </td>
+      </tr>
+    ))}
+  </tbody>
+</table>
+```
+
+## Data Formatting
+
+<Tabs>
+  <Tab title="Percentages">
+    The `positivos` and `negativos` fields are returned as strings. Convert them to numbers for calculations:
+
+    ```typescript
+    const positivePercent = parseFloat(dataResponse.positivos).toFixed(1);
+    const negativePercent = parseFloat(dataResponse.negativos).toFixed(1);
+    ```
+  </Tab>
+  
+  <Tab title="Probability">
+    The `probabilidad` field is a decimal (0-1). Display as percentage:
+
+    ```typescript
+    const probabilityPercent = (probabilidad * 100).toFixed(1);
+    // Example: 0.9234 -> "92.3%"
+    ```
+  </Tab>
+  
+  <Tab title="Timestamps">
+    The `fecharegistro` field contains ISO 8601 formatted timestamps:
+
+    ```typescript
+    const date = new Date(fecharegistro);
+    const formatted = date.toLocaleDateString('es-ES', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+    ```
+  </Tab>
+</Tabs>
+
+## Pagination
+
+<Info>
+The response includes pagination metadata (`totalPages`, `totalElements`, `number`) for implementing paginated views.
+</Info>
+
+To implement pagination, you would typically add a `page` parameter to the request:
+
+```typescript
+const fetchPage = async (page: number, size: number, token: string) => {
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_API_URL}/stats?page=${page}&size=${size}`,
+    {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
+    }
+  );
+  return await response.json();
+};
+```
+
+## Error Handling
+
+```typescript
+try {
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_API_URL}/stats?size=${size}`,
+    {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
+    }
+  );
+
+  if (!response.ok) {
+    switch (response.status) {
+      case 401:
+        throw new Error("Sesión expirada. Por favor, inicia sesión.");
+      case 403:
+        throw new Error("No tienes permisos para ver estas estadísticas.");
+      case 500:
+        throw new Error("Error del servidor. Intenta más tarde.");
+      default:
+        throw new Error(`Error inesperado: ${response.status}`);
+    }
+  }
+
+  const data = await response.json();
+  return data;
+} catch (error) {
+  if (error.message === "Failed to fetch") {
+    console.error("No se pudo conectar con el servidor.");
+  }
+  throw error;
+}
+```
+
+## Best Practices
+
+<Steps>
+  <Step title="Input Validation">
+    Validate that the `size` parameter is a positive integer before making the request
+  </Step>
+  <Step title="Default Values">
+    Use optional chaining and nullish coalescing for safe data access: `dataResponse?.total_en_pagina ?? 0`
+  </Step>
+  <Step title="Loading States">
+    Implement loading indicators while fetching statistics
+  </Step>
+  <Step title="Refresh Logic">
+    Allow users to refresh statistics to see updated data
+  </Step>
+  <Step title="Visual Feedback">
+    Use color coding and progress bars to make sentiment data easily scannable
+  </Step>
+</Steps>
+
+## Next Steps
+
+<Card title="Export Statistics" icon="download" href="/features/export-results">
+  Learn how to export statistics dashboard data to CSV
+</Card>
