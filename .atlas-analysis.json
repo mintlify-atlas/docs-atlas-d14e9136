@@ -1,0 +1,82 @@
+{
+  "projectType": "saas",
+  "projectName": "SentimentAPI",
+  "projectDescription": "AI-powered sentiment analysis platform for analyzing customer feedback at scale with bulk CSV processing and real-time statistics",
+  "theme": "palm",
+  "primaryColor": "#7c7c7c",
+  "lightColor": "#070707",
+  "darkColor": "#c4c4c4",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "authentication"
+            ]
+          },
+          {
+            "group": "Core Features",
+            "pages": [
+              "features/single-analysis",
+              "features/bulk-processing",
+              "features/statistics-dashboard",
+              "features/export-results"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/csv-format",
+              "guides/interpreting-results",
+              "guides/best-practices"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Endpoints",
+            "pages": [
+              "api/overview",
+              "api/authentication",
+              "api/sentiment-analysis",
+              "api/bulk-upload",
+              "api/statistics",
+              "api/export"
+            ]
+          },
+          {
+            "group": "Data Models",
+            "pages": [
+              "api/models/sentiment-result",
+              "api/models/statistics-response"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "AI-powered sentiment analysis (positive/negative classification)",
+    "Single comment analysis with confidence scores",
+    "Bulk CSV upload for processing thousands of comments",
+    "Real-time statistics dashboard with sentiment distribution",
+    "Export analyzed results to CSV format",
+    "Token-based authentication and session management",
+    "Probability scores for each sentiment prediction"
+  ],
+  "publicApiSurface": [
+    "POST /login - User authentication",
+    "POST /sentiment - Analyze single or multiple comments",
+    "POST /sentiment/upload-csv - Upload CSV file for bulk analysis",
+    "POST /sentiment/export-csv - Export analysis results to CSV",
+    "GET /stats - Retrieve sentiment statistics with pagination"
+  ]
+}
